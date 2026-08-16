@@ -1,7 +1,5 @@
 import Link from "next/link"
 import {
-  ExternalLinkIcon,
-  FileTextIcon,
   LogOutIcon,
   PenLineIcon,
   SettingsIcon,
@@ -9,6 +7,7 @@ import {
 } from "lucide-react"
 
 import { logoutAction } from "@/app/actions/auth"
+import { PlatformLogo } from "@/components/logos/platform-logo"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -24,7 +23,7 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar"
-import type { AppUser, PostSummary } from "@/lib/types"
+import type { AppUser, PostSummary, PublishPlatform } from "@/lib/types"
 
 const statusLabel: Record<PostSummary["status"], string> = {
   draft: "초안",
@@ -32,6 +31,22 @@ const statusLabel: Record<PostSummary["status"], string> = {
   published: "게시됨",
   partial: "일부 완료",
   failed: "실패",
+}
+
+const platformLinkTone: Record<PublishPlatform, string> = {
+  threads: "bg-platform-threads hover:!bg-platform-threads",
+  x: "bg-platform-x hover:!bg-platform-x",
+  discord: "bg-platform-discord hover:!bg-platform-discord",
+  naver_cafe: "bg-platform-naver-cafe hover:!bg-platform-naver-cafe",
+  soop: "bg-platform-soop hover:!bg-platform-soop",
+}
+
+const platformLabel: Record<PublishPlatform, string> = {
+  threads: "Threads",
+  x: "X",
+  discord: "Discord",
+  naver_cafe: "네이버 카페",
+  soop: "SOOP",
 }
 
 function relativeDate(value: string) {
@@ -110,8 +125,7 @@ export function AppSidebar({
                         aria-label={`${post.title} 상세 보기`}
                         className="absolute inset-0 rounded-md outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring"
                       />
-                      <span className="pointer-events-none relative flex items-start gap-2">
-                        <FileTextIcon className="mt-0.5 size-4" />
+                      <span className="pointer-events-none relative flex items-start">
                         <span className="min-w-0 flex-1">
                           <span className="block truncate text-sm font-medium">
                             {post.title}
@@ -124,7 +138,7 @@ export function AppSidebar({
                         </span>
                       </span>
                       {post.links.length > 0 ? (
-                        <div className="relative z-10 mt-2 flex flex-wrap gap-1 pl-6">
+                        <div className="relative z-10 mt-2 flex items-center gap-1.5">
                           {post.links.map((link) => (
                             <Button
                               key={link.platform}
@@ -136,17 +150,16 @@ export function AppSidebar({
                                 />
                               }
                               nativeButton={false}
-                              variant="outline"
-                              size="xs"
+                              variant="default"
+                              size="icon-sm"
+                              aria-label={`${platformLabel[link.platform]} 게시물 열기`}
+                              className={`rounded-full ${platformLinkTone[link.platform]} text-white hover:brightness-95`}
                             >
-                              {link.platform === "naver_cafe"
-                                ? "네이버"
-                                : link.platform === "soop"
-                                  ? "SOOP"
-                                  : link.platform === "threads"
-                                    ? "Threads"
-                                    : "X"}
-                              <ExternalLinkIcon data-icon="inline-end" />
+                              <PlatformLogo
+                                platform={link.platform}
+                                color="currentColor"
+                                className="size-3.5"
+                              />
                             </Button>
                           ))}
                         </div>

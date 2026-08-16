@@ -1,7 +1,6 @@
 "use client"
 
 import { useRef, useState, useTransition } from "react"
-import Link from "next/link"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { EditorContent, useEditor } from "@tiptap/react"
 import Image from "@tiptap/extension-image"
@@ -16,13 +15,10 @@ import {
   AlignRightIcon,
   BoldIcon,
   CheckCircle2Icon,
-  ChevronRightIcon,
   ImagePlusIcon,
   ItalicIcon,
   Link2Icon,
   LoaderCircleIcon,
-  SendIcon,
-  SettingsIcon,
   StrikethroughIcon,
   UnderlineIcon,
 } from "lucide-react"
@@ -33,8 +29,9 @@ import {
   recordExtensionResultAction,
   uploadPostImageAction,
 } from "@/app/actions/posts"
+import { PlatformLogo } from "@/components/logos/platform-logo"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Separator } from "@/components/ui/separator"
 import { cn } from "@/lib/utils"
@@ -50,12 +47,12 @@ import type {
   PublishPlatform,
 } from "@/lib/types"
 
-const platformTone: Record<PublishPlatform, string> = {
-  threads: "bg-foreground text-background",
-  x: "bg-foreground text-background",
-  discord: "bg-indigo-600 text-white",
-  naver_cafe: "bg-emerald-500 text-white",
-  soop: "bg-sky-500 text-white",
+const platformToggleTone: Record<PublishPlatform, string> = {
+  threads: "bg-platform-threads text-white",
+  x: "bg-platform-x text-white",
+  discord: "bg-platform-discord text-white",
+  naver_cafe: "bg-platform-naver-cafe text-white",
+  soop: "bg-platform-soop text-white",
 }
 
 function ToolbarButton({
@@ -316,7 +313,8 @@ export function PostEditor({
                   postId: result.postId,
                   platform: job.platform,
                   ok: false,
-                  message: "센드베이스 게시글 플러그인이 설치되어 있지 않습니다.",
+                  message:
+                    "센드베이스 게시글 플러그인이 설치되어 있지 않습니다.",
                 })
               )
             )
@@ -359,288 +357,224 @@ export function PostEditor({
   })
 
   return (
-    <div className="mx-auto grid w-full max-w-6xl gap-5 lg:grid-cols-[minmax(0,1fr)_18rem]">
-      <main className="min-w-0">
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h1 className="text-xl font-semibold tracking-tight">새 게시물</h1>
-            <p className="mt-1 text-sm text-muted-foreground">
-              한 번 작성하고 연결한 채널에 함께 게시하세요.
-            </p>
-          </div>
+    <div className="mx-auto w-full max-w-6xl">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-semibold tracking-tight">새 게시물</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            한 번 작성하고 연결한 채널에 함께 게시하세요.
+          </p>
         </div>
+      </div>
 
-        <Card className="gap-0 py-0 shadow-sm">
-          <div className="px-7 pt-6 sm:px-10 sm:pt-8">
-            <Input
-              {...register("title")}
-              aria-invalid={Boolean(errors.title)}
-              placeholder="게시물 제목"
-              className="h-auto rounded-none border-0 px-0 py-2 text-2xl font-semibold tracking-tight shadow-none focus-visible:ring-0 md:text-2xl"
-            />
-            {errors.title ? (
-              <p className="mt-1 text-xs text-destructive">
-                {errors.title.message}
-              </p>
-            ) : null}
-          </div>
-          <Separator className="mt-4" />
-          <div className="flex flex-wrap items-center gap-0.5 border-b px-3 py-2 sm:px-6">
-            <ToolbarButton
-              label="굵게"
-              active={editor?.isActive("bold")}
-              onClick={() => editor?.chain().focus().toggleBold().run()}
-            >
-              <BoldIcon />
-            </ToolbarButton>
-            <ToolbarButton
-              label="기울임"
-              active={editor?.isActive("italic")}
-              onClick={() => editor?.chain().focus().toggleItalic().run()}
-            >
-              <ItalicIcon />
-            </ToolbarButton>
-            <ToolbarButton
-              label="밑줄"
-              active={editor?.isActive("underline")}
-              onClick={() => editor?.chain().focus().toggleUnderline().run()}
-            >
-              <UnderlineIcon />
-            </ToolbarButton>
-            <ToolbarButton
-              label="취소선"
-              active={editor?.isActive("strike")}
-              onClick={() => editor?.chain().focus().toggleStrike().run()}
-            >
-              <StrikethroughIcon />
-            </ToolbarButton>
-            <span className="mx-1 h-5 w-px bg-border" />
-            <ToolbarButton
-              label="링크"
-              active={editor?.isActive("link")}
-              onClick={applyLink}
-            >
-              <Link2Icon />
-            </ToolbarButton>
-            <ToolbarButton
-              label="이미지 첨부"
-              onClick={() => imageInputRef.current?.click()}
-            >
-              <ImagePlusIcon />
-            </ToolbarButton>
-            <input
-              ref={imageInputRef}
-              type="file"
-              accept="image/jpeg,image/png,image/webp,image/gif"
-              className="sr-only"
-              onChange={(event) => {
-                const file = event.target.files?.[0]
-                if (file) void attachImage(file)
-                event.target.value = ""
-              }}
-            />
-            <span className="mx-1 h-5 w-px bg-border" />
-            <ToolbarButton
-              label="왼쪽 정렬"
-              active={editor?.isActive({ textAlign: "left" })}
-              onClick={() => editor?.chain().focus().setTextAlign("left").run()}
-            >
-              <AlignLeftIcon />
-            </ToolbarButton>
-            <ToolbarButton
-              label="가운데 정렬"
-              active={editor?.isActive({ textAlign: "center" })}
-              onClick={() =>
-                editor?.chain().focus().setTextAlign("center").run()
-              }
-            >
-              <AlignCenterIcon />
-            </ToolbarButton>
-            <ToolbarButton
-              label="오른쪽 정렬"
-              active={editor?.isActive({ textAlign: "right" })}
-              onClick={() =>
-                editor?.chain().focus().setTextAlign("right").run()
-              }
-            >
-              <AlignRightIcon />
-            </ToolbarButton>
-          </div>
-          <EditorContent
-            editor={editor}
-            className="[&_.tiptap_p.is-editor-empty:first-child::before]:pointer-events-none [&_.tiptap_p.is-editor-empty:first-child::before]:float-left [&_.tiptap_p.is-editor-empty:first-child::before]:h-0 [&_.tiptap_p.is-editor-empty:first-child::before]:text-muted-foreground [&_.tiptap_p.is-editor-empty:first-child::before]:content-[attr(data-placeholder)]"
-          />
-          <div className="flex items-center justify-between border-t bg-muted/20 px-5 py-3 text-xs text-muted-foreground sm:px-8">
-            <span>
-              이미지 {imageCount}개 · 링크 {countLinks(plainText)}개
-            </span>
-            <span>
-              {Array.from(plainText).length.toLocaleString("ko-KR")}자
-            </span>
-          </div>
-        </Card>
+      <Controller
+        control={control}
+        name="destinations"
+        render={({ field }) => (
+          <div className="mb-4">
+            <div className="flex flex-wrap gap-2">
+              {(Object.keys(platformLimits) as PublishPlatform[]).map(
+                (platform) => {
+                  const selected = field.value.includes(platform)
+                  const isConnected = connected.has(platform)
 
-        {notice ? (
-          <div
-            className={cn(
-              "mt-4 flex items-center gap-2 rounded-lg border px-3 py-2 text-sm",
-              notice.type === "error"
-                ? "border-destructive/30 bg-destructive/5 text-destructive"
-                : "border-emerald-500/30 bg-emerald-500/5 text-emerald-700 dark:text-emerald-400"
-            )}
-          >
-            {notice.type === "success" ? (
-              <CheckCircle2Icon className="size-4" />
-            ) : null}
-            {notice.text}
-          </div>
-        ) : null}
-      </main>
-
-      <aside className="space-y-4">
-        <Card>
-          <CardHeader className="border-b">
-            <CardTitle>게시할 곳</CardTitle>
-            <p className="text-xs text-muted-foreground">
-              연결된 플랫폼을 선택하세요.
-            </p>
-          </CardHeader>
-          <CardContent>
-            <Controller
-              control={control}
-              name="destinations"
-              render={({ field }) => (
-                <div className="space-y-2">
-                  {(Object.keys(platformLimits) as PublishPlatform[]).map(
-                    (platform) => {
-                      const limit = platformLimits[platform]
-                      const selected = field.value.includes(platform)
-                      const isConnected = connected.has(platform)
-                      return (
-                        <button
-                          key={platform}
-                          type="button"
-                          disabled={!isConnected}
-                          onClick={() =>
-                            field.onChange(
-                              selected
-                                ? field.value.filter(
-                                    (item) => item !== platform
-                                  )
-                                : [...field.value, platform]
-                            )
-                          }
-                          className={cn(
-                            "flex w-full items-center gap-3 rounded-xl border p-3 text-left transition-colors",
-                            selected
-                              ? "border-foreground/30 bg-muted"
-                              : "hover:bg-muted/60",
-                            !isConnected && "cursor-not-allowed opacity-50"
-                          )}
-                        >
-                          <span
-                            className={cn(
-                              "flex size-8 shrink-0 items-center justify-center rounded-lg text-xs font-bold",
-                              platformTone[platform]
-                            )}
-                          >
-                            {limit.shortLabel}
-                          </span>
-                          <span className="min-w-0 flex-1">
-                            <span className="block text-sm font-medium">
-                              {limit.label}
-                            </span>
-                            <span className="block truncate text-xs text-muted-foreground">
-                              {isConnected
-                                ? selected
-                                  ? "선택됨"
-                                  : "연결됨"
-                                : "연결 필요"}
-                            </span>
-                          </span>
-                          {selected ? (
-                            <CheckCircle2Icon className="size-4" />
-                          ) : (
-                            <ChevronRightIcon className="size-4 text-muted-foreground" />
-                          )}
-                        </button>
-                      )
-                    }
-                  )}
-                </div>
+                  return (
+                    <button
+                      key={platform}
+                      type="button"
+                      disabled={!isConnected}
+                      aria-pressed={selected}
+                      onClick={() =>
+                        field.onChange(
+                          selected
+                            ? field.value.filter((item) => item !== platform)
+                            : [...field.value, platform]
+                        )
+                      }
+                      className={cn(
+                        "flex h-10 items-center gap-2 rounded-lg border px-3 text-sm font-medium transition-colors",
+                        selected
+                          ? platformToggleTone[platform]
+                          : "bg-card hover:bg-muted",
+                        !isConnected && "cursor-not-allowed opacity-50"
+                      )}
+                    >
+                      <PlatformLogo
+                        platform={platform}
+                        color={selected ? "currentColor" : undefined}
+                        className="size-4"
+                      />
+                      {platformLimits[platform].label}
+                    </button>
+                  )
+                }
               )}
-            />
+            </div>
             {errors.destinations ? (
               <p className="mt-2 text-xs text-destructive">
                 {errors.destinations.message}
               </p>
             ) : null}
-            <Button
-              render={<Link href="/settings" />}
-              nativeButton={false}
-              variant="ghost"
-              className="mt-2 w-full text-muted-foreground"
-            >
-              <SettingsIcon /> 연결 관리
-            </Button>
-          </CardContent>
-        </Card>
+          </div>
+        )}
+      />
 
-        <Card>
-          <CardHeader className="border-b">
-            <CardTitle>플랫폼 제한</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
+      <Card className="gap-0 py-0 shadow-sm">
+        <div className="px-7 pt-6 sm:px-10 sm:pt-8">
+          <Input
+            {...register("title")}
+            aria-invalid={Boolean(errors.title)}
+            placeholder="게시물 제목"
+            className="h-auto rounded-none border-0 px-0 py-2 text-2xl font-semibold tracking-tight shadow-none focus-visible:ring-0 md:text-2xl"
+          />
+          {errors.title ? (
+            <p className="mt-1 text-xs text-destructive">
+              {errors.title.message}
+            </p>
+          ) : null}
+        </div>
+        <Separator className="mt-4" />
+        <div className="flex flex-wrap items-center gap-0.5 border-b px-3 py-2 sm:px-6">
+          <ToolbarButton
+            label="굵게"
+            active={editor?.isActive("bold")}
+            onClick={() => editor?.chain().focus().toggleBold().run()}
+          >
+            <BoldIcon />
+          </ToolbarButton>
+          <ToolbarButton
+            label="기울임"
+            active={editor?.isActive("italic")}
+            onClick={() => editor?.chain().focus().toggleItalic().run()}
+          >
+            <ItalicIcon />
+          </ToolbarButton>
+          <ToolbarButton
+            label="밑줄"
+            active={editor?.isActive("underline")}
+            onClick={() => editor?.chain().focus().toggleUnderline().run()}
+          >
+            <UnderlineIcon />
+          </ToolbarButton>
+          <ToolbarButton
+            label="취소선"
+            active={editor?.isActive("strike")}
+            onClick={() => editor?.chain().focus().toggleStrike().run()}
+          >
+            <StrikethroughIcon />
+          </ToolbarButton>
+          <span className="mx-1 h-5 w-px bg-border" />
+          <ToolbarButton
+            label="링크"
+            active={editor?.isActive("link")}
+            onClick={applyLink}
+          >
+            <Link2Icon />
+          </ToolbarButton>
+          <ToolbarButton
+            label="이미지 첨부"
+            onClick={() => imageInputRef.current?.click()}
+          >
+            <ImagePlusIcon />
+          </ToolbarButton>
+          <input
+            ref={imageInputRef}
+            type="file"
+            accept="image/jpeg,image/png,image/webp,image/gif"
+            className="sr-only"
+            onChange={(event) => {
+              const file = event.target.files?.[0]
+              if (file) void attachImage(file)
+              event.target.value = ""
+            }}
+          />
+          <span className="mx-1 h-5 w-px bg-border" />
+          <ToolbarButton
+            label="왼쪽 정렬"
+            active={editor?.isActive({ textAlign: "left" })}
+            onClick={() => editor?.chain().focus().setTextAlign("left").run()}
+          >
+            <AlignLeftIcon />
+          </ToolbarButton>
+          <ToolbarButton
+            label="가운데 정렬"
+            active={editor?.isActive({ textAlign: "center" })}
+            onClick={() => editor?.chain().focus().setTextAlign("center").run()}
+          >
+            <AlignCenterIcon />
+          </ToolbarButton>
+          <ToolbarButton
+            label="오른쪽 정렬"
+            active={editor?.isActive({ textAlign: "right" })}
+            onClick={() => editor?.chain().focus().setTextAlign("right").run()}
+          >
+            <AlignRightIcon />
+          </ToolbarButton>
+        </div>
+        <EditorContent
+          editor={editor}
+          className="[&_.tiptap_p.is-editor-empty:first-child::before]:pointer-events-none [&_.tiptap_p.is-editor-empty:first-child::before]:float-left [&_.tiptap_p.is-editor-empty:first-child::before]:h-0 [&_.tiptap_p.is-editor-empty:first-child::before]:text-muted-foreground [&_.tiptap_p.is-editor-empty:first-child::before]:content-[attr(data-placeholder)]"
+        />
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t bg-muted/20 px-5 py-3 sm:px-8">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
             {selectedDestinations.map((platform) => {
               const limit = platformLimits[platform]
               const count = countCharacters(platform, plainText)
               const invalid =
                 Boolean(limit.maxCharacters && count > limit.maxCharacters) ||
                 Boolean(limit.maxImages && imageCount > limit.maxImages)
+
               return (
-                <div key={platform} className="space-y-1">
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="font-medium">{limit.label}</span>
-                    <span
-                      className={
-                        invalid ? "text-destructive" : "text-muted-foreground"
-                      }
-                    >
-                      {limit.maxCharacters
-                        ? `${count}/${limit.maxCharacters}자`
-                        : `${count}자`}
-                    </span>
-                  </div>
-                  <p className="text-xs leading-5 text-muted-foreground">
-                    {limit.maxImages
-                      ? `이미지 ${imageCount}/${limit.maxImages} · `
-                      : ""}
-                    {limit.note}
-                  </p>
-                </div>
+                <span
+                  key={platform}
+                  className={invalid ? "text-destructive" : undefined}
+                >
+                  {limit.label}{" "}
+                  {limit.maxCharacters
+                    ? `${count}/${limit.maxCharacters}자`
+                    : "글자 수 제한 없음"}
+                  {limit.maxImages
+                    ? ` · 이미지 ${imageCount}/${limit.maxImages}`
+                    : ""}
+                </span>
               )
             })}
             {selectedDestinations.length === 0 ? (
-              <p className="text-xs leading-5 text-muted-foreground">
-                플랫폼을 선택하면 글자·이미지 제한을 확인할 수 있습니다.
-              </p>
+              <span>플랫폼을 선택해 주세요.</span>
             ) : null}
-          </CardContent>
-        </Card>
+            <span>
+              이미지 {imageCount}개 · 링크 {countLinks(plainText)}개 ·{" "}
+              {Array.from(plainText).length.toLocaleString("ko-KR")}자
+            </span>
+          </div>
+          <Button
+            className="h-10 shadow-sm"
+            onClick={publish}
+            disabled={isPublishing}
+          >
+            <span>공지 작성</span>
+            {isPublishing ? (
+              <LoaderCircleIcon className="animate-spin" />
+            ) : null}
+          </Button>
+        </div>
+      </Card>
 
-        <Button
-          className="h-11 w-full shadow-sm"
-          onClick={publish}
-          disabled={isPublishing}
-        >
-          {isPublishing ? (
-            <LoaderCircleIcon className="animate-spin" />
-          ) : (
-            <SendIcon />
+      {notice ? (
+        <div
+          className={cn(
+            "mt-4 flex items-center gap-2 rounded-lg border px-3 py-2 text-sm",
+            notice.type === "error"
+              ? "border-destructive/30 bg-destructive/5 text-destructive"
+              : "border-emerald-500/30 bg-emerald-500/5 text-emerald-700 dark:text-emerald-400"
           )}
-          {isPublishing ? "게시하는 중…" : "선택한 곳에 게시"}
-        </Button>
-      </aside>
+        >
+          {notice.type === "success" ? (
+            <CheckCircle2Icon className="size-4" />
+          ) : null}
+          {notice.text}
+        </div>
+      ) : null}
     </div>
   )
 }

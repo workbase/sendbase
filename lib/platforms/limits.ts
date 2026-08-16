@@ -2,7 +2,6 @@ import type { PublishPlatform } from "@/lib/types"
 
 export type PlatformLimit = {
   label: string
-  shortLabel: string
   maxCharacters: number | null
   maxImages: number | null
   maxLinks: number | null
@@ -12,7 +11,6 @@ export type PlatformLimit = {
 export const platformLimits: Record<PublishPlatform, PlatformLimit> = {
   threads: {
     label: "Threads",
-    shortLabel: "Th",
     maxCharacters: 500,
     maxImages: 20,
     maxLinks: 1,
@@ -20,7 +18,6 @@ export const platformLimits: Record<PublishPlatform, PlatformLimit> = {
   },
   x: {
     label: "X",
-    shortLabel: "X",
     maxCharacters: 280,
     maxImages: 4,
     maxLinks: null,
@@ -28,7 +25,6 @@ export const platformLimits: Record<PublishPlatform, PlatformLimit> = {
   },
   discord: {
     label: "Discord",
-    shortLabel: "Ds",
     maxCharacters: 2_000,
     maxImages: 10,
     maxLinks: null,
@@ -36,7 +32,6 @@ export const platformLimits: Record<PublishPlatform, PlatformLimit> = {
   },
   naver_cafe: {
     label: "네이버 카페",
-    shortLabel: "N",
     maxCharacters: null,
     maxImages: null,
     maxLinks: null,
@@ -44,7 +39,6 @@ export const platformLimits: Record<PublishPlatform, PlatformLimit> = {
   },
   soop: {
     label: "SOOP 게시판",
-    shortLabel: "S",
     maxCharacters: null,
     maxImages: null,
     maxLinks: null,

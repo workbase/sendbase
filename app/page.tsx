@@ -7,26 +7,21 @@ import {
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
+import { PlatformLogo } from "@/components/logos/platform-logo"
 import { getCurrentUser } from "@/lib/auth/session"
 
 const providers = [
   {
     id: "chzzk",
-    name: "CHZZK",
     label: "치지직으로 계속하기",
-    tone: "bg-lime-400 text-lime-950",
   },
   {
     id: "soop",
-    name: "SOOP",
     label: "SOOP으로 계속하기",
-    tone: "bg-sky-500 text-white",
   },
   {
     id: "cime",
-    name: "Cime",
     label: "씨미로 계속하기",
-    tone: "bg-violet-500 text-white",
   },
 ] as const
 
@@ -109,10 +104,8 @@ export default async function LoginPage({
                 variant="outline"
                 className="h-12 w-full justify-start gap-3 px-3 text-sm shadow-none"
               >
-                <span
-                  className={`flex size-7 items-center justify-center rounded-lg text-xs font-bold ${provider.tone}`}
-                >
-                  {provider.name.slice(0, 2)}
+                <span className="flex size-7 items-center justify-center rounded-lg bg-muted">
+                  <PlatformLogo platform={provider.id} className="size-4" />
                 </span>
                 <span className="flex-1 text-left">{provider.label}</span>
                 <ArrowRightIcon className="text-muted-foreground" />

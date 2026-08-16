@@ -13,6 +13,7 @@ import { useForm } from "react-hook-form"
 import { z } from "zod"
 
 import { saveBoardSettingsAction } from "@/app/actions/settings"
+import { PlatformLogo } from "@/components/logos/platform-logo"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -110,8 +111,8 @@ export function SettingsForm({
                 key={item.platform}
                 className="flex flex-wrap items-center gap-4 px-4 py-4 sm:px-6"
               >
-                <span className="flex size-10 items-center justify-center rounded-xl bg-muted text-sm font-bold">
-                  {item.name.slice(0, 2)}
+                <span className="flex size-10 items-center justify-center rounded-xl bg-muted">
+                  <PlatformLogo platform={item.platform} className="size-5" />
                 </span>
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
@@ -152,8 +153,8 @@ export function SettingsForm({
           <CardContent className="space-y-6 pt-1">
             <section className="space-y-3">
               <div className="flex items-center gap-2">
-                <span className="flex size-7 items-center justify-center rounded-lg bg-emerald-500 text-xs font-bold text-white">
-                  N
+                <span className="flex size-7 items-center justify-center rounded-lg bg-muted">
+                  <PlatformLogo platform="naver_cafe" className="size-4" />
                 </span>
                 <h2 className="font-medium">네이버 카페</h2>
               </div>
@@ -189,8 +190,8 @@ export function SettingsForm({
 
             <section className="space-y-3 border-t pt-5">
               <div className="flex items-center gap-2">
-                <span className="flex size-7 items-center justify-center rounded-lg bg-sky-500 text-xs font-bold text-white">
-                  S
+                <span className="flex size-7 items-center justify-center rounded-lg bg-muted">
+                  <PlatformLogo platform="soop" className="size-4" />
                 </span>
                 <h2 className="font-medium">SOOP 게시판</h2>
               </div>

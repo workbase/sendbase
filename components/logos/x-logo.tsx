@@ -1,0 +1,19 @@
+import { resolveLogoColor, type LogoProps } from "./logo-props"
+
+export function XLogo({ color, originalColor, ...props }: LogoProps) {
+  const fill = resolveLogoColor(color, originalColor, "#000000")
+
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      {...props}
+    >
+      <path
+        d="M13.5237 10.7757L19.4811 4H18.0699L12.8949 9.88201L8.7648 4H4L10.2469 12.8955L4 19.9999H5.4112L10.8725 13.787L15.2352 19.9999H20M5.92053 5.04126H8.08853L18.0688 19.0098H15.9003"
+        fill={fill}
+      />
+    </svg>
+  )
+}
