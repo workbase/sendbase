@@ -21,7 +21,6 @@ import {
   ItalicIcon,
   Link2Icon,
   LoaderCircleIcon,
-  SaveIcon,
   SendIcon,
   SettingsIcon,
   StrikethroughIcon,
@@ -32,10 +31,8 @@ import { Controller, useForm, useWatch } from "react-hook-form"
 import {
   publishPostAction,
   recordExtensionResultAction,
-  savePostAction,
   uploadPostImageAction,
 } from "@/app/actions/posts"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -48,7 +45,6 @@ import {
 } from "@/lib/platforms/limits"
 import { postFormSchema, type PostFormValues } from "@/lib/posts/schema"
 import type {
-  EditablePost,
   ExtensionPublishJob,
   PlatformConnection,
   PublishPlatform,
@@ -122,34 +118,59 @@ function runExtensionJob(job: ExtensionPublishJob) {
         job.platform === "naver_cafe"
           ? "WORKBASE_NAVER_CAFE_AUTOWRITE_RESULT"
           : "WORKBASE_SOOP_AUTOWRITE_RESULT"
-      const timeout = window.setTimeout(() => {
+      const completedUrlType =
+        job.platform === "naver_cafe"
+          ? "WORKBASE_NAVER_CAFE_AUTOWRITE_COMPLETED_URL"
+          : "WORKBASE_SOOP_AUTOWRITE_COMPLETED_URL"
+      let successfulResult: { ok: true; message: string } | null = null
+      let completedUrl: string | null = null
+
+      const cleanup = () => {
+        window.clearTimeout(timeout)
         window.removeEventListener("message", listener)
-        resolve({
-          ok: false,
-          message: "확장 프로그램 응답 시간이 초과되었습니다.",
-        })
+      }
+
+      const finishIfComplete = () => {
+        if (!successfulResult || !completedUrl) return
+        cleanup()
+        resolve({ ...successfulResult, url: completedUrl })
+      }
+
+      const timeout = window.setTimeout(() => {
+        cleanup()
+        resolve(
+          successfulResult ?? {
+            ok: false,
+            message: "확장 프로그램 응답 시간이 초과되었습니다.",
+          }
+        )
       }, 120_000)
       const listener = (event: MessageEvent<unknown>) => {
         if (event.origin !== window.location.origin) return
         const data = event.data as Record<string, unknown> | null
-        if (
-          !data ||
-          data.requestId !== job.requestId ||
-          data.type !== resultType
-        )
+        if (!data || data.requestId !== job.requestId) return
+
+        if (data.type === completedUrlType && typeof data.url === "string") {
+          completedUrl = data.url
+          finishIfComplete()
           return
+        }
+
+        if (data.type !== resultType) return
         const result = data.result as Record<string, unknown> | undefined
-        window.clearTimeout(timeout)
-        window.removeEventListener("message", listener)
-        resolve({
-          ok: result?.ok === true,
-          message:
-            typeof result?.message === "string"
-              ? result.message
-              : typeof result?.error === "string"
-                ? result.error
-                : "자동 작성 결과를 확인해 주세요.",
-        })
+        const message =
+          typeof result?.message === "string"
+            ? result.message
+            : typeof result?.error === "string"
+              ? result.error
+              : "자동 작성 결과를 확인해 주세요."
+        if (result?.ok !== true) {
+          cleanup()
+          resolve({ ok: false, message })
+          return
+        }
+        successfulResult = { ok: true, message }
+        finishIfComplete()
       }
       window.addEventListener("message", listener)
       window.postMessage(
@@ -166,23 +187,20 @@ function runExtensionJob(job: ExtensionPublishJob) {
 }
 
 export function PostEditor({
-  post,
   connections,
 }: {
-  post: EditablePost | null
   connections: PlatformConnection[]
 }) {
   const connected = new Set(
     connections.filter((item) => item.connected).map((item) => item.platform)
   )
-  const defaultDestinations = post?.destinations ?? Array.from(connected)
-  const [plainText, setPlainText] = useState(post?.contentText ?? "")
-  const [imageCount, setImageCount] = useState(post?.imageUrls.length ?? 0)
+  const defaultDestinations = Array.from(connected)
+  const [plainText, setPlainText] = useState("")
+  const [imageCount, setImageCount] = useState(0)
   const [notice, setNotice] = useState<{
     type: "success" | "error"
     text: string
   } | null>(null)
-  const [isSaving, startSaving] = useTransition()
   const [isPublishing, startPublishing] = useTransition()
   const imageInputRef = useRef<HTMLInputElement>(null)
 
@@ -190,14 +208,14 @@ export function PostEditor({
     register,
     control,
     handleSubmit,
+    reset,
     setValue,
-    formState: { errors, isDirty },
+    formState: { errors },
   } = useForm<PostFormValues>({
     resolver: zodResolver(postFormSchema),
     defaultValues: {
-      id: post?.id,
-      title: post?.title ?? "",
-      contentHtml: post?.contentHtml ?? "<p></p>",
+      title: "",
+      contentHtml: "<p></p>",
       destinations: defaultDestinations,
     },
   })
@@ -231,7 +249,7 @@ export function PostEditor({
         placeholder: "여러 플랫폼에 전할 이야기를 작성해 보세요…",
       }),
     ],
-    content: post?.contentHtml ?? "<p></p>",
+    content: "<p></p>",
     editorProps: {
       attributes: {
         class:
@@ -284,28 +302,11 @@ export function PostEditor({
     }
   }
 
-  const saveDraft = handleSubmit((values) => {
-    setNotice(null)
-    startSaving(async () => {
-      try {
-        const result = await savePostAction(values)
-        setValue("id", result.postId)
-        setNotice({ type: "success", text: "초안을 저장했습니다." })
-      } catch (error) {
-        setNotice({
-          type: "error",
-          text: error instanceof Error ? error.message : "저장하지 못했습니다.",
-        })
-      }
-    })
-  })
-
   const publish = handleSubmit((values) => {
     setNotice(null)
     startPublishing(async () => {
       try {
         const result = await publishPostAction(values)
-        setValue("id", result.postId)
         if (result.extensionJobs.length > 0) {
           const installed = await extensionCheck()
           if (!installed) {
@@ -341,6 +342,14 @@ export function PostEditor({
               ? `${result.results.length - failures.length}곳 게시 완료 · ${failures.length}곳 확인 필요`
               : "선택한 플랫폼에 게시 요청을 완료했습니다.",
         })
+        reset({
+          title: "",
+          contentHtml: "<p></p>",
+          destinations: defaultDestinations,
+        })
+        editor?.commands.setContent("<p></p>")
+        setPlainText("")
+        setImageCount(0)
       } catch (error) {
         setNotice({
           type: "error",
@@ -355,32 +364,11 @@ export function PostEditor({
       <main className="min-w-0">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-xl font-semibold tracking-tight">
-                {post ? "게시물 편집" : "새 게시물"}
-              </h1>
-              {isDirty ? (
-                <Badge variant="secondary">수정됨</Badge>
-              ) : (
-                <Badge variant="outline">저장됨</Badge>
-              )}
-            </div>
+            <h1 className="text-xl font-semibold tracking-tight">새 게시물</h1>
             <p className="mt-1 text-sm text-muted-foreground">
               한 번 작성하고 연결한 채널에 함께 게시하세요.
             </p>
           </div>
-          <Button
-            variant="outline"
-            onClick={saveDraft}
-            disabled={isSaving || isPublishing}
-          >
-            {isSaving ? (
-              <LoaderCircleIcon className="animate-spin" />
-            ) : (
-              <SaveIcon />
-            )}
-            초안 저장
-          </Button>
         </div>
 
         <Card className="gap-0 py-0 shadow-sm">
@@ -644,7 +632,7 @@ export function PostEditor({
         <Button
           className="h-11 w-full shadow-sm"
           onClick={publish}
-          disabled={isPublishing || isSaving}
+          disabled={isPublishing}
         >
           {isPublishing ? (
             <LoaderCircleIcon className="animate-spin" />

@@ -33,8 +33,7 @@ function validateLimits(
 
 async function persistPost(
   userId: string,
-  input: z.infer<typeof postFormSchema>,
-  status: "draft" | "publishing"
+  input: z.infer<typeof postFormSchema>
 ) {
   const html = sanitizeEditorHtml(input.contentHtml)
   const text = htmlToPlainText(html)
@@ -46,36 +45,23 @@ async function persistPost(
     content_html: html,
     content_text: text,
     image_urls: imageUrls,
-    status,
+    status: "publishing" as const,
     updated_at: new Date().toISOString(),
   }
 
-  const query = input.id
-    ? supabase.from("posts").update(values).eq("id", input.id).eq("user_id", userId)
-    : supabase.from("posts").insert(values)
-  const { data, error } = await query.select("id").single()
+  const { data, error } = await supabase
+    .from("posts")
+    .insert(values)
+    .select("id")
+    .single()
   if (error) throw new Error(`게시물을 저장하지 못했습니다: ${error.message}`)
   const postId = data.id as string
 
-  const { error: deleteError } = await supabase
-    .from("post_destinations")
-    .delete()
-    .eq("post_id", postId)
-  if (deleteError) throw new Error(deleteError.message)
   const { error: destinationError } = await supabase.from("post_destinations").insert(
     input.destinations.map((platform) => ({ post_id: postId, platform, status: "pending" }))
   )
   if (destinationError) throw new Error(destinationError.message)
   return { postId, html, text, imageUrls }
-}
-
-export async function savePostAction(input: unknown) {
-  const user = await requireUser()
-  const parsed = postFormSchema.safeParse(input)
-  if (!parsed.success) throw new Error(parsed.error.issues[0]?.message ?? "입력값을 확인해 주세요.")
-  const { postId } = await persistPost(user.id, parsed.data, "draft")
-  revalidatePath("/dashboard")
-  return { postId }
 }
 
 export async function publishPostAction(input: unknown): Promise<PublishResult> {
@@ -90,7 +76,7 @@ export async function publishPostAction(input: unknown): Promise<PublishResult> 
   if (!plainText && images.length === 0) throw new Error("본문 또는 이미지를 추가해 주세요.")
   validateLimits(parsed.data.destinations, plainText, images)
 
-  const { postId, html, text, imageUrls } = await persistPost(user.id, parsed.data, "publishing")
+  const { postId, html, text, imageUrls } = await persistPost(user.id, parsed.data)
   const supabase = createAdminClient()
   const extensionJobs: ExtensionPublishJob[] = []
   const results: PublishResult["results"] = []

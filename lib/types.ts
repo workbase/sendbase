@@ -20,13 +20,18 @@ export type PostSummary = {
   title: string
   status: "draft" | "publishing" | "published" | "partial" | "failed"
   updatedAt: string
+  links: PublishedPostLink[]
 }
 
-export type EditablePost = PostSummary & {
+export type PublishedPostLink = {
+  platform: PublishPlatform
+  url: string
+}
+
+export type PostDetail = PostSummary & {
   contentHtml: string
   contentText: string
   imageUrls: string[]
-  destinations: PublishPlatform[]
 }
 
 export type PlatformConnection = {

@@ -1,5 +1,6 @@
 import Link from "next/link"
 import {
+  ExternalLinkIcon,
   FileTextIcon,
   LogOutIcon,
   PenLineIcon,
@@ -51,11 +52,9 @@ function relativeDate(value: string) {
 export function AppSidebar({
   user,
   posts,
-  activePostId,
 }: {
   user: AppUser
   posts: PostSummary[]
-  activePostId?: string
 }) {
   return (
     <Sidebar
@@ -101,23 +100,57 @@ export function AppSidebar({
                 </li>
               ) : (
                 posts.map((post) => (
-                  <SidebarMenuItem key={post.id}>
+                  <SidebarMenuItem key={post.id} className="py-0.5">
                     <SidebarMenuButton
-                      render={<Link href={`/dashboard?post=${post.id}`} />}
-                      isActive={post.id === activePostId}
-                      className="h-auto items-start py-2.5"
+                      render={<div />}
+                      className="relative h-auto flex-col items-stretch gap-0 py-2.5"
                     >
-                      <FileTextIcon className="mt-0.5 size-4" />
-                      <span className="min-w-0 flex-1">
-                        <span className="block truncate text-sm font-medium">
-                          {post.title}
-                        </span>
-                        <span className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
-                          <span>{relativeDate(post.updatedAt)}</span>
-                          <span aria-hidden="true">·</span>
-                          <span>{statusLabel[post.status]}</span>
+                      <Link
+                        href={`/dashboard?detail=${post.id}`}
+                        aria-label={`${post.title} 상세 보기`}
+                        className="absolute inset-0 rounded-md outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring"
+                      />
+                      <span className="pointer-events-none relative flex items-start gap-2">
+                        <FileTextIcon className="mt-0.5 size-4" />
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-sm font-medium">
+                            {post.title}
+                          </span>
+                          <span className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
+                            <span>{relativeDate(post.updatedAt)}</span>
+                            <span aria-hidden="true">·</span>
+                            <span>{statusLabel[post.status]}</span>
+                          </span>
                         </span>
                       </span>
+                      {post.links.length > 0 ? (
+                        <div className="relative z-10 mt-2 flex flex-wrap gap-1 pl-6">
+                          {post.links.map((link) => (
+                            <Button
+                              key={link.platform}
+                              render={
+                                <a
+                                  href={link.url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                />
+                              }
+                              nativeButton={false}
+                              variant="outline"
+                              size="xs"
+                            >
+                              {link.platform === "naver_cafe"
+                                ? "네이버"
+                                : link.platform === "soop"
+                                  ? "SOOP"
+                                  : link.platform === "threads"
+                                    ? "Threads"
+                                    : "X"}
+                              <ExternalLinkIcon data-icon="inline-end" />
+                            </Button>
+                          ))}
+                        </div>
+                      ) : null}
                     </SidebarMenuButton>
                   </SidebarMenuItem>
                 ))

@@ -1,27 +1,63 @@
 import { cache } from "react"
 
 import { createAdminClient } from "@/lib/supabase/admin"
-import type { EditablePost, PlatformConnection, PostSummary, PublishPlatform } from "@/lib/types"
+import type {
+  PlatformConnection,
+  PostDetail,
+  PostSummary,
+  PublishedPostLink,
+  PublishPlatform,
+} from "@/lib/types"
+
+const recentPostLinkOrder: PublishPlatform[] = [
+  "x",
+  "threads",
+  "naver_cafe",
+  "soop",
+]
+const recentPostLinkPlatforms = new Set(recentPostLinkOrder)
+
+type DestinationRow = {
+  platform: string
+  external_url: string | null
+}
+
+function publishedLinks(destinations: DestinationRow[]): PublishedPostLink[] {
+  return destinations
+    .flatMap((destination) => {
+      const platform = destination.platform as PublishPlatform
+      return destination.external_url && recentPostLinkPlatforms.has(platform)
+        ? [{ platform, url: destination.external_url }]
+        : []
+    })
+    .sort(
+      (left, right) =>
+        recentPostLinkOrder.indexOf(left.platform) -
+        recentPostLinkOrder.indexOf(right.platform)
+    )
+}
 
 export const getPosts = cache(async (userId: string): Promise<PostSummary[]> => {
   const supabase = createAdminClient()
   const { data, error } = await supabase
     .from("posts")
-    .select("id, title, status, updated_at")
+    .select("id, title, status, updated_at, post_destinations(platform, external_url)")
     .eq("user_id", userId)
+    .neq("status", "draft")
     .order("updated_at", { ascending: false })
     .limit(50)
   if (error) throw new Error(error.message)
   return (data ?? []).map((post) => ({
     id: post.id as string,
-    title: (post.title as string) || "제목 없는 초안",
+    title: (post.title as string) || "제목 없는 게시물",
     status: post.status as PostSummary["status"],
     updatedAt: post.updated_at as string,
+    links: publishedLinks((post.post_destinations ?? []) as DestinationRow[]),
   }))
 })
 
-export const getPost = cache(
-  async (userId: string, postId: string): Promise<EditablePost | null> => {
+export const getPostDetail = cache(
+  async (userId: string, postId: string): Promise<PostDetail | null> => {
     const supabase = createAdminClient()
     const [postResult, destinationsResult] = await Promise.all([
       supabase
@@ -32,7 +68,7 @@ export const getPost = cache(
         .maybeSingle(),
       supabase
         .from("post_destinations")
-        .select("platform")
+        .select("platform, external_url")
         .eq("post_id", postId),
     ])
     if (postResult.error) throw new Error(postResult.error.message)
@@ -48,8 +84,8 @@ export const getPost = cache(
       imageUrls: post.image_urls as string[],
       status: post.status as PostSummary["status"],
       updatedAt: post.updated_at as string,
-      destinations: (destinationsResult.data ?? []).map(
-        (item) => item.platform as PublishPlatform
+      links: publishedLinks(
+        (destinationsResult.data ?? []) as DestinationRow[]
       ),
     }
   }
