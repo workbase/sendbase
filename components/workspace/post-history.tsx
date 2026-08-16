@@ -230,7 +230,9 @@ export function PostHistory({
     <PostHistoryContext value={{ addPost }}>
       <div
         ref={viewportRef}
-        className="h-svh overflow-y-auto overscroll-contain"
+        className={`h-svh overflow-y-auto overscroll-contain ${
+          isInitialPositioned ? "visible" : "invisible"
+        }`}
         onScroll={(event) => {
           const viewport = event.currentTarget
           if (

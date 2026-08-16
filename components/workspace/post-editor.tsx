@@ -1,6 +1,13 @@
 "use client"
 
-import { useLayoutEffect, useMemo, useRef, useState, useTransition } from "react"
+import {
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  useTransition,
+} from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { EditorContent, useEditor } from "@tiptap/react"
 import Image from "@tiptap/extension-image"
@@ -51,6 +58,18 @@ import type {
 import { publishPlatforms } from "@/lib/types"
 
 const selectedPlatformsStorageKey = "sendbase:selected-post-platforms"
+
+function subscribeToHydration() {
+  return () => undefined
+}
+
+function getClientHydrationSnapshot() {
+  return true
+}
+
+function getServerHydrationSnapshot() {
+  return false
+}
 
 const platformToggleTone: Record<PublishPlatform, string> = {
   threads: "bg-platform-threads text-white",
@@ -240,7 +259,11 @@ export function PostEditor({
   )
   const [plainText, setPlainText] = useState("")
   const [imageCount, setImageCount] = useState(0)
-  const [isDestinationsReady, setIsDestinationsReady] = useState(false)
+  const isDestinationsReady = useSyncExternalStore(
+    subscribeToHydration,
+    getClientHydrationSnapshot,
+    getServerHydrationSnapshot
+  )
   const [isPublishing, startPublishing] = useTransition()
   const imageInputRef = useRef<HTMLInputElement>(null)
 
@@ -273,8 +296,6 @@ export function PostEditor({
         ),
       }))
     }
-
-    setIsDestinationsReady(true)
   }, [connected, defaultDestinations, reset])
 
   const editor = useEditor({
@@ -568,7 +589,7 @@ export function PostEditor({
         </div>
         <EditorContent
           editor={editor}
-          className="[&_.tiptap_p.is-editor-empty:first-child::before]:pointer-events-none [&_.tiptap_p.is-editor-empty:first-child::before]:float-left [&_.tiptap_p.is-editor-empty:first-child::before]:h-0 [&_.tiptap_p.is-editor-empty:first-child::before]:text-muted-foreground [&_.tiptap_p.is-editor-empty:first-child::before]:content-[attr(data-placeholder)]"
+          className="min-h-80 sm:min-h-96 [&_.tiptap_p.is-editor-empty:first-child::before]:pointer-events-none [&_.tiptap_p.is-editor-empty:first-child::before]:float-left [&_.tiptap_p.is-editor-empty:first-child::before]:h-0 [&_.tiptap_p.is-editor-empty:first-child::before]:text-muted-foreground [&_.tiptap_p.is-editor-empty:first-child::before]:content-[attr(data-placeholder)]"
         />
         <div className="flex flex-wrap items-end justify-between gap-3 px-5 py-5 sm:px-8 sm:py-8">
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
