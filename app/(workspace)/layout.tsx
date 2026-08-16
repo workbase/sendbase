@@ -4,7 +4,7 @@ export default async function WorkspaceLayout({
   children: React.ReactNode
 }) {
   return (
-    <main className="min-h-svh bg-muted/20">
+    <main className="min-h-svh bg-muted">
       {children}
     </main>
   )

@@ -13,6 +13,7 @@ function ThemeProvider({
       defaultTheme="system"
       enableSystem
       disableTransitionOnChange
+      storageKey="sendbase-theme"
       {...props}
     >
       <ThemeHotkey />

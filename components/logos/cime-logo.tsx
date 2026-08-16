@@ -1,7 +1,11 @@
 import { resolveLogoColor, type LogoProps } from "./logo-props"
 
 export function CimeLogo({ color, originalColor, ...props }: LogoProps) {
-  const fill = resolveLogoColor(color, originalColor, "#7A3FFC")
+  const fill = resolveLogoColor(
+    color,
+    originalColor,
+    "var(--platform-cime-icon)"
+  )
 
   return (
     <svg

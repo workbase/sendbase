@@ -1,7 +1,11 @@
 import { resolveLogoColor, type LogoProps } from "./logo-props"
 
 export function DiscordLogo({ color, originalColor, ...props }: LogoProps) {
-  const fill = resolveLogoColor(color, originalColor, "#5865F2")
+  const fill = resolveLogoColor(
+    color,
+    originalColor,
+    "var(--platform-discord-icon)"
+  )
 
   return (
     <svg

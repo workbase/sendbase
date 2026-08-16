@@ -1,7 +1,11 @@
 import { resolveLogoColor, type LogoProps } from "./logo-props"
 
 export function ChzzkLogo({ color, originalColor, ...props }: LogoProps) {
-  const fill = resolveLogoColor(color, originalColor, "#00FFA3")
+  const fill = resolveLogoColor(
+    color,
+    originalColor,
+    "var(--platform-chzzk-icon)"
+  )
 
   return (
     <svg

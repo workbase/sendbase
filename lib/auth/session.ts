@@ -4,11 +4,12 @@ import { cookies } from "next/headers"
 import { redirect } from "next/navigation"
 
 import { createAdminClient } from "@/lib/supabase/admin"
-import type { AppUser } from "@/lib/types"
+import type { AppUser, LoginProvider } from "@/lib/types"
 import { hashToken } from "@/lib/auth/crypto"
 
 const SESSION_COOKIE = "sendbase_session"
 const SESSION_DAYS = 30
+const loginProviderValues = new Set<LoginProvider>(["chzzk", "soop", "cime"])
 
 export async function createSession(userId: string) {
   const rawToken = randomBytes(32).toString("base64url")
@@ -36,7 +37,10 @@ export async function deleteSession() {
   const token = cookieStore.get(SESSION_COOKIE)?.value
   if (token) {
     const supabase = createAdminClient()
-    await supabase.from("app_sessions").delete().eq("token_hash", hashToken(token))
+    await supabase
+      .from("app_sessions")
+      .delete()
+      .eq("token_hash", hashToken(token))
   }
   cookieStore.delete(SESSION_COOKIE)
 }
@@ -49,7 +53,9 @@ export const getCurrentUser = cache(async (): Promise<AppUser | null> => {
   const supabase = createAdminClient()
   const { data, error } = await supabase
     .from("app_sessions")
-    .select("user_id, expires_at, app_users(id, display_name, avatar_url)")
+    .select(
+      "user_id, expires_at, app_users(id, display_name, avatar_url, login_accounts(provider))"
+    )
     .eq("token_hash", hashToken(token))
     .gt("expires_at", new Date().toISOString())
     .maybeSingle()
@@ -59,13 +65,21 @@ export const getCurrentUser = cache(async (): Promise<AppUser | null> => {
     id: string
     display_name: string
     avatar_url: string | null
+    login_accounts: Array<{ provider: string }>
   } | null
   if (!joined) return null
+
+  const loginProviders = joined.login_accounts.flatMap(({ provider }) =>
+    loginProviderValues.has(provider as LoginProvider)
+      ? [provider as LoginProvider]
+      : []
+  )
 
   return {
     id: joined.id,
     displayName: joined.display_name,
     avatarUrl: joined.avatar_url,
+    loginProviders,
   }
 })
 

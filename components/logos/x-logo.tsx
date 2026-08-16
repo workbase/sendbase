@@ -1,7 +1,7 @@
 import { resolveLogoColor, type LogoProps } from "./logo-props"
 
 export function XLogo({ color, originalColor, ...props }: LogoProps) {
-  const fill = resolveLogoColor(color, originalColor, "#000000")
+  const fill = resolveLogoColor(color, originalColor, "var(--platform-x-icon)")
 
   return (
     <svg

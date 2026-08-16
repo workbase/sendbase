@@ -78,7 +78,7 @@
   --chart-3: oklch(0.439 0 0);
   --chart-4: oklch(0.371 0 0);
   --chart-5: oklch(0.269 0 0);
-  --radius: 0.625rem;
+  --radius: 0.8rem;
   --sidebar: oklch(0.985 0 0);
   --sidebar-foreground: oklch(0.145 0 0);
   --sidebar-primary: oklch(0.205 0 0);
@@ -94,6 +94,12 @@
   --platform-soop: #2943af;
   --platform-threads: #000000;
   --platform-x: #000000;
+  --platform-chzzk-icon: var(--platform-chzzk);
+  --platform-cime-icon: var(--platform-cime);
+  --platform-discord-icon: var(--platform-discord);
+  --platform-soop-icon: var(--platform-soop);
+  --platform-threads-icon: var(--platform-threads);
+  --platform-x-icon: var(--platform-x);
 }
 
 .dark {
@@ -128,11 +134,21 @@
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.556 0 0);
+  --platform-cime-icon: #c4b5fd;
+  --platform-discord-icon: #a5b4fc;
+  --platform-soop-icon: #93a5ff;
+  --platform-threads-icon: oklch(0.985 0 0);
+  --platform-x-icon: oklch(0.985 0 0);
 }
 
 @layer base {
   * {
     @apply border-border outline-ring/50;
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  *::-webkit-scrollbar {
+    display: none;
   }
   body {
     @apply bg-background text-foreground;
@@ -143,5 +159,12 @@
   }
   html {
     @apply font-sans;
+  }
+}
+
+@layer utilities {
+  .dashboard-top-blur-mask {
+    -webkit-mask-image: linear-gradient(to bottom, black, transparent);
+    mask-image: linear-gradient(to bottom, black, transparent);
   }
 }

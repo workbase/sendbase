@@ -1,7 +1,11 @@
 import { resolveLogoColor, type LogoProps } from "./logo-props"
 
 export function SoopLogo({ color, originalColor, ...props }: LogoProps) {
-  const fill = resolveLogoColor(color, originalColor, "#2943AF")
+  const fill = resolveLogoColor(
+    color,
+    originalColor,
+    "var(--platform-soop-icon)"
+  )
 
   return (
     <svg

@@ -5,5 +5,5 @@ import { getConnections } from "@/lib/posts/queries"
 export default async function SettingsPage() {
   const user = await requireUser()
   const connections = await getConnections(user.id)
-  return <SettingsForm connections={connections} />
+  return <SettingsForm connections={connections} user={user} />
 }

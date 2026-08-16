@@ -1,7 +1,11 @@
 import { resolveLogoColor, type LogoProps } from "./logo-props"
 
 export function ThreadsLogo({ color, originalColor, ...props }: LogoProps) {
-  const fill = resolveLogoColor(color, originalColor, "#000000")
+  const fill = resolveLogoColor(
+    color,
+    originalColor,
+    "var(--platform-threads-icon)"
+  )
 
   return (
     <svg

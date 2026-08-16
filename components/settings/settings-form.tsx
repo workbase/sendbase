@@ -8,20 +8,24 @@ import {
   CheckCircle2Icon,
   ExternalLinkIcon,
   LoaderCircleIcon,
+  LogOutIcon,
   PuzzleIcon,
   SaveIcon,
 } from "lucide-react"
 import { useForm } from "react-hook-form"
 import { z } from "zod"
 
+import { logoutAction } from "@/app/actions/auth"
 import { saveBoardSettingsAction } from "@/app/actions/settings"
 import { PlatformLogo } from "@/components/logos/platform-logo"
+import { ThemeSelector } from "@/components/settings/theme-selector"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import type { PlatformConnection } from "@/lib/types"
+import type { AppUser, LoginProvider, PlatformConnection } from "@/lib/types"
 
 const schema = z.object({
   naverCafe: z.object({
@@ -50,10 +54,18 @@ const apiPlatforms = [
   },
 ] as const
 
+const loginProviderNames: Record<LoginProvider, string> = {
+  chzzk: "치지직",
+  soop: "SOOP",
+  cime: "씨미",
+}
+
 export function SettingsForm({
   connections,
+  user,
 }: {
   connections: PlatformConnection[]
+  user: AppUser
 }) {
   const [isPending, startTransition] = useTransition()
   const [notice, setNotice] = useState<string | null>(null)
@@ -95,8 +107,7 @@ export function SettingsForm({
         <Button
           render={<Link href="/dashboard" />}
           nativeButton={false}
-          size="sm"
-          variant="outline"
+          variant="secondary"
         >
           <ArrowLeftIcon />
           메인으로 돌아가기
@@ -108,6 +119,54 @@ export function SettingsForm({
           </p>
         </div>
       </div>
+
+      <Card>
+        <CardHeader className="border-b">
+          <CardTitle>로그인 정보</CardTitle>
+          <p className="text-sm text-muted-foreground">
+            현재 Sendbase에 로그인한 계정입니다.
+          </p>
+        </CardHeader>
+        <CardContent className="flex items-center justify-between gap-4 pt-1">
+          <div className="flex min-w-0 items-center gap-3">
+            <Avatar size="lg">
+              {user.avatarUrl ? (
+                <AvatarImage src={user.avatarUrl} alt="" />
+              ) : null}
+              <AvatarFallback>
+                {user.displayName.slice(0, 1).toUpperCase()}
+              </AvatarFallback>
+            </Avatar>
+            <div className="min-w-0">
+              <p className="truncate font-medium">{user.displayName}</p>
+              <p className="mt-0.5 text-sm text-muted-foreground">
+                로그인 플랫폼:{" "}
+                {user.loginProviders
+                  .map((provider) => loginProviderNames[provider])
+                  .join(", ") || "알 수 없음"}
+              </p>
+            </div>
+          </div>
+          <form action={logoutAction}>
+            <Button type="submit" variant="outline">
+              <LogOutIcon />
+              로그아웃
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="border-b">
+          <CardTitle>테마</CardTitle>
+          <p className="text-sm text-muted-foreground">
+            이 브라우저에서 사용할 화면 테마를 선택하세요.
+          </p>
+        </CardHeader>
+        <CardContent className="pt-1">
+          <ThemeSelector />
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader className="border-b">

@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useRef, useState, useTransition } from "react"
+import { useLayoutEffect, useMemo, useRef, useState, useTransition } from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { EditorContent, useEditor } from "@tiptap/react"
 import Image from "@tiptap/extension-image"
@@ -9,12 +9,12 @@ import Placeholder from "@tiptap/extension-placeholder"
 import TextAlign from "@tiptap/extension-text-align"
 import Underline from "@tiptap/extension-underline"
 import StarterKit from "@tiptap/starter-kit"
+import { toast } from "sonner"
 import {
   AlignCenterIcon,
   AlignLeftIcon,
   AlignRightIcon,
   BoldIcon,
-  CheckCircle2Icon,
   ImagePlusIcon,
   ItalicIcon,
   Link2Icon,
@@ -240,10 +240,7 @@ export function PostEditor({
   )
   const [plainText, setPlainText] = useState("")
   const [imageCount, setImageCount] = useState(0)
-  const [notice, setNotice] = useState<{
-    type: "success" | "error"
-    text: string
-  } | null>(null)
+  const [isDestinationsReady, setIsDestinationsReady] = useState(false)
   const [isPublishing, startPublishing] = useTransition()
   const imageInputRef = useRef<HTMLInputElement>(null)
 
@@ -264,19 +261,20 @@ export function PostEditor({
   })
   const selectedDestinations = useWatch({ control, name: "destinations" })
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const savedDestinations = readSavedDestinations()
     if (savedDestinations === null) {
       saveDestinations(defaultDestinations)
-      return
+    } else {
+      reset((values) => ({
+        ...values,
+        destinations: savedDestinations.filter((platform) =>
+          connected.has(platform)
+        ),
+      }))
     }
 
-    reset((values) => ({
-      ...values,
-      destinations: savedDestinations.filter((platform) =>
-        connected.has(platform)
-      ),
-    }))
+    setIsDestinationsReady(true)
   }, [connected, defaultDestinations, reset])
 
   const editor = useEditor({
@@ -345,25 +343,19 @@ export function PostEditor({
   }
 
   async function attachImage(file: File) {
-    setNotice(null)
     try {
       const form = new FormData()
       form.set("file", file)
       const { url } = await uploadPostImageAction(form)
       editor?.chain().focus().setImage({ src: url, alt: file.name }).run()
     } catch (error) {
-      setNotice({
-        type: "error",
-        text:
-          error instanceof Error
-            ? error.message
-            : "이미지를 첨부하지 못했습니다.",
-      })
+      toast.error(
+        error instanceof Error ? error.message : "이미지를 첨부하지 못했습니다."
+      )
     }
   }
 
   const publish = handleSubmit((values) => {
-    setNotice(null)
     startPublishing(async () => {
       try {
         const result = await publishPostAction(values)
@@ -397,13 +389,16 @@ export function PostEditor({
         const post = await getPostDetailAction(result.postId)
         if (post) addPost(post)
         const failures = result.results.filter((item) => !item.ok)
-        setNotice({
-          type: failures.length > 0 ? "error" : "success",
-          text:
-            failures.length > 0
-              ? `${result.results.length - failures.length}곳 게시 완료 · ${failures.length}곳 확인 필요`
-              : "선택한 플랫폼에 게시 요청을 완료했습니다.",
-        })
+        const message =
+          failures.length > 0
+            ? `${result.results.length - failures.length}곳 게시 완료 · ${failures.length}곳 확인 필요`
+            : "선택한 플랫폼에 게시 요청을 완료했습니다."
+
+        if (failures.length > 0) {
+          toast.error(message)
+        } else {
+          toast.success(message)
+        }
         reset({
           title: "",
           contentHtml: "<p></p>",
@@ -413,31 +408,26 @@ export function PostEditor({
         setPlainText("")
         setImageCount(0)
       } catch (error) {
-        setNotice({
-          type: "error",
-          text: error instanceof Error ? error.message : "게시하지 못했습니다.",
-        })
+        toast.error(
+          error instanceof Error ? error.message : "게시하지 못했습니다."
+        )
       }
     })
   })
 
   return (
     <div className="mx-auto w-full max-w-3xl">
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-semibold tracking-tight">새 게시물</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            한 번 작성하고 연결한 채널에 함께 게시하세요.
-          </p>
-        </div>
-      </div>
-
       <Controller
         control={control}
         name="destinations"
         render={({ field }) => (
           <div className="mb-4">
-            <div className="flex flex-wrap gap-2">
+            <div
+              className={cn(
+                "flex flex-wrap gap-2",
+                !isDestinationsReady && "invisible"
+              )}
+            >
               {(Object.keys(platformLimits) as PublishPlatform[]).map(
                 (platform) => {
                   const selected = field.value.includes(platform)
@@ -449,6 +439,7 @@ export function PostEditor({
                       type="button"
                       disabled={!isConnected}
                       aria-pressed={selected}
+                      aria-label={platformLimits[platform].label}
                       onClick={() => {
                         const destinations = selected
                           ? field.value.filter((item) => item !== platform)
@@ -457,7 +448,7 @@ export function PostEditor({
                         saveDestinations(destinations)
                       }}
                       className={cn(
-                        "flex h-10 items-center gap-2 rounded-lg border px-3 text-sm font-medium transition-colors",
+                        "flex size-10 items-center justify-center rounded-lg border text-sm font-medium transition-colors",
                         selected
                           ? platformToggleTone[platform]
                           : "bg-card hover:bg-muted",
@@ -469,7 +460,6 @@ export function PostEditor({
                         color={selected ? "currentColor" : undefined}
                         className="size-4"
                       />
-                      {platformLimits[platform].label}
                     </button>
                   )
                 }
@@ -484,13 +474,13 @@ export function PostEditor({
         )}
       />
 
-      <Card className="gap-0 py-0 shadow-sm">
+      <Card radius="top" className="gap-0 py-0">
         <div className="px-7 pt-6 sm:px-10 sm:pt-8">
           <Input
             {...register("title")}
             aria-invalid={Boolean(errors.title)}
             placeholder="게시물 제목"
-            className="h-auto rounded-none border-0 px-0 py-2 text-2xl font-semibold tracking-tight shadow-none focus-visible:ring-0 md:text-2xl"
+            className="h-auto rounded-none border-0 bg-transparent px-0 py-2 text-2xl font-semibold tracking-tight shadow-none focus-visible:ring-0 md:text-2xl dark:bg-transparent"
           />
           {errors.title ? (
             <p className="mt-1 text-xs text-destructive">
@@ -580,7 +570,7 @@ export function PostEditor({
           editor={editor}
           className="[&_.tiptap_p.is-editor-empty:first-child::before]:pointer-events-none [&_.tiptap_p.is-editor-empty:first-child::before]:float-left [&_.tiptap_p.is-editor-empty:first-child::before]:h-0 [&_.tiptap_p.is-editor-empty:first-child::before]:text-muted-foreground [&_.tiptap_p.is-editor-empty:first-child::before]:content-[attr(data-placeholder)]"
         />
-        <div className="flex flex-wrap items-center justify-between gap-3 border-t bg-muted/20 px-5 py-3 sm:px-8">
+        <div className="flex flex-wrap items-end justify-between gap-3 px-5 py-5 sm:px-8 sm:py-8">
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
             {selectedDestinations.map((platform) => {
               const limit = platformLimits[platform]
@@ -617,29 +607,13 @@ export function PostEditor({
             onClick={publish}
             disabled={isPublishing}
           >
-            <span>공지 작성</span>
+            <span>공지 작성하기</span>
             {isPublishing ? (
               <LoaderCircleIcon className="animate-spin" />
             ) : null}
           </Button>
         </div>
       </Card>
-
-      {notice ? (
-        <div
-          className={cn(
-            "mt-4 flex items-center gap-2 rounded-lg border px-3 py-2 text-sm",
-            notice.type === "error"
-              ? "border-destructive/30 bg-destructive/5 text-destructive"
-              : "border-emerald-500/30 bg-emerald-500/5 text-emerald-700 dark:text-emerald-400"
-          )}
-        >
-          {notice.type === "success" ? (
-            <CheckCircle2Icon className="size-4" />
-          ) : null}
-          {notice.text}
-        </div>
-      ) : null}
     </div>
   )
 }
