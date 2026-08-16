@@ -1,25 +1,15 @@
 General
-• Stack: Next.js 16 App Router, React 19, TypeScript, Tailwind v4, Supabase, Supabase Auth (Google).
-• / = unified Google login/signup entry.
+• Stack: Next.js 16 App Router, React 19, TypeScript, Tailwind v4, Supabase
+• / = unified login/signup entry.
 • Provide fully working production-ready code only.
 • Default to Server Components; Client Components only for real interaction (forms, dialogs, toggles, browser APIs).
 • Avoid redundant fetches, unnecessary CSR, and hydration overhead.
 • App data mutations should use Server Actions. Client-side Supabase is allowed only for official auth flows or browser-only session/storage needs when a Server Action is not practical.
 
 
-
-Folders
-• src/app/auth: auth callback routes.
-• /: landing page.
-• UI primitives: src/components/ui (single source of truth).
-• Supabase/auth/db/fetch helpers: src/lib/*.
-• Server Actions: src/app/**/actions.ts or src/lib/actions.
-• One file, one responsibility.
-
-
 Rendering & Architecture
 • Server Components by default; fetch on server, pass data via props/context.
-• Global data (auth, profile, subscription) should be fetched once at layout level and shared when child routes need it.
+• Global data (auth, profile) should be fetched once at layout level and shared when child routes need it.
 • Never refetch the same data in pages/actions if already provided by layout or request-level cache.
 • SSR-first even when client interaction is required; wrap only the interactive parts.
 • Heavy UI (tables, dashboards, lists) should render on server when possible; interaction layers stay minimal.
@@ -41,9 +31,8 @@ Client Components & Bundling
 Styling
 • Tailwind utilities only.
 • Avoid inline styles, arbitrary px values, and raw hex colors in product UI. Exceptions are limited to SVG brand assets, chart primitive internals, and library-required CSS variable plumbing.
-• All reusable product UI should be built on src/components/ui primitives.
 • Extend via cva variants or wrappers, not page-level overrides.
-• Phosphor icons (@phosphor-icons/react) are the default icon set.
+• Lucide icons are the default icon set.
 • No extra CSS beyond global tokens, resets, and narrowly scoped app-wide utilities.
 
 
@@ -78,7 +67,7 @@ Forms & Mutations
 
 Code Quality
 • Fully typed code; no any.
-• Business logic lives in src/lib, not components.
+• Business logic lives in app/lib, not components.
 • No console.log in final code.
 • Use async/await consistently.
 • Keep components small; split when logic or responsibility grows.
@@ -86,7 +75,7 @@ Code Quality
 
 
 shadcn/ui
-• src/components/ui is the single authority for primitives.
+• /components/ui is the single authority for primitives.
 • No ad-hoc styling of primitives inside pages.
 • Extend via variants or shared wrappers only.
 • Reusable UI patterns belong in ui or shared, not page files.
