@@ -22,13 +22,13 @@ export async function GET(
     const state = randomBytes(24).toString("base64url")
     const redirectUri = `${appOrigin()}/api/auth/${provider}/callback`
     const url = new URL(config.authorizeUrl)
-    url.searchParams.set("clientId", config.clientId)
-    url.searchParams.set("client_id", config.clientId)
-    url.searchParams.set("redirectUri", redirectUri)
-    url.searchParams.set("redirect_uri", redirectUri)
-    url.searchParams.set("response_type", "code")
-    url.searchParams.set("state", state)
-    if (config.scopes) url.searchParams.set("scope", config.scopes)
+    if (provider === "soop") {
+      url.searchParams.set("client_id", config.clientId)
+    } else {
+      url.searchParams.set("clientId", config.clientId)
+      url.searchParams.set("redirectUri", redirectUri)
+      url.searchParams.set("state", state)
+    }
 
     const cookieStore = await cookies()
     cookieStore.set(`oauth_state_${provider}`, state, {

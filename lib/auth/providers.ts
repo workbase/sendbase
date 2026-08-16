@@ -6,7 +6,6 @@ type LoginProviderConfig = {
   authorizeUrl: string
   tokenUrl: string
   profileUrl: string
-  scopes?: string
 }
 
 function env(name: string) {
@@ -41,12 +40,11 @@ export function getLoginProviderConfig(provider: LoginProvider): LoginProviderCo
     clientSecret: env("SOOP_CLIENT_SECRET"),
     authorizeUrl:
       process.env.SOOP_AUTHORIZE_URL ??
-      "https://openapi.sooplive.co.kr/oauth2.0/authorize",
+      "https://openapi.sooplive.com/auth/code",
     tokenUrl:
-      process.env.SOOP_TOKEN_URL ?? "https://openapi.sooplive.co.kr/oauth2.0/token",
+      process.env.SOOP_TOKEN_URL ?? "https://openapi.sooplive.com/auth/token",
     profileUrl:
-      process.env.SOOP_PROFILE_URL ?? "https://openapi.sooplive.co.kr/user/me",
-    scopes: process.env.SOOP_LOGIN_SCOPES,
+      process.env.SOOP_PROFILE_URL ?? "https://openapi.sooplive.com/user/stationinfo",
   }
 }
 

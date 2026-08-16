@@ -90,24 +90,58 @@ async function exchangeCode(provider: LoginProvider, code: string, state: string
 
 async function fetchProfile(provider: LoginProvider, accessToken: string) {
   const config = getLoginProviderConfig(provider)
-  const response = await fetch(config.profileUrl, {
-    headers: { Authorization: `Bearer ${accessToken}` },
-    cache: "no-store",
-  })
+  const response =
+    provider === "soop"
+      ? await fetch(config.profileUrl, {
+          method: "POST",
+          headers: {
+            Accept: "application/json",
+            "Content-Type": "application/x-www-form-urlencoded",
+          },
+          body: new URLSearchParams({ access_token: accessToken }),
+          cache: "no-store",
+        })
+      : await fetch(config.profileUrl, {
+          headers: { Authorization: `Bearer ${accessToken}` },
+          cache: "no-store",
+        })
   const json: unknown = await response.json()
   if (!response.ok) throw new Error("소셜 프로필을 불러오지 못했습니다.")
 
   const root = asRecord(json)
+  if (provider === "soop" && root.result !== 1) {
+    throw new Error(firstString(root, ["msg", "message"]) ?? "SOOP 프로필을 불러오지 못했습니다.")
+  }
   const content = asRecord(root.content)
-  const source = Object.keys(content).length > 0 ? content : root
-  const id = firstString(source, ["channelId", "id", "user_id", "userId", "uid"])
+  const data = asRecord(root.data)
+  const source =
+    Object.keys(content).length > 0
+      ? content
+      : Object.keys(data).length > 0
+        ? data
+        : root
+  const id = firstString(source, [
+    "channelId",
+    "id",
+    "user_id",
+    "userId",
+    "uid",
+    "station_name",
+  ])
   const name = firstString(source, ["channelName", "nickname", "name", "user_nick", "userName"])
   if (!id || !name) throw new Error("소셜 프로필 식별 정보가 없습니다.")
+
+  const avatarUrl = firstString(source, [
+    "channelImageUrl",
+    "profile_image",
+    "avatar",
+    "avatarUrl",
+  ])
 
   return {
     id,
     name,
-    avatarUrl: firstString(source, ["channelImageUrl", "profile_image", "avatar", "avatarUrl"]),
+    avatarUrl: avatarUrl?.startsWith("//") ? `https:${avatarUrl}` : avatarUrl,
     raw: source,
   } satisfies SocialProfile
 }
@@ -177,12 +211,14 @@ export async function GET(
   const expectedState = cookieStore.get(`oauth_state_${provider}`)?.value
   cookieStore.delete(`oauth_state_${provider}`)
 
-  if (!code || !state || state !== expectedState) {
+  const invalidState =
+    provider === "soop" ? !expectedState : !state || state !== expectedState
+  if (!code || invalidState) {
     return NextResponse.redirect(`${appOrigin()}/?error=${encodeURIComponent("로그인 요청이 만료되었거나 유효하지 않습니다.")}`)
   }
 
   try {
-    const tokens = await exchangeCode(provider, code, state)
+    const tokens = await exchangeCode(provider, code, state ?? "")
     const profile = await fetchProfile(provider, tokens.accessToken)
     const userId = await upsertUser(provider, tokens, profile)
     await createSession(userId)
