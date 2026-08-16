@@ -7,3 +7,11 @@ export const platformToggleTone: Record<PublishPlatform, string> = {
   naver_cafe: "bg-platform-naver-cafe text-white",
   soop: "bg-platform-soop text-white",
 }
+
+export const platformStatusTone: Record<PublishPlatform, string> = {
+  threads: "bg-platform-threads-icon",
+  x: "bg-platform-x-icon",
+  discord: "bg-platform-discord",
+  naver_cafe: "bg-platform-naver-cafe",
+  soop: "bg-platform-soop-icon",
+}

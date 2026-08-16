@@ -45,6 +45,9 @@
   --color-platform-soop: var(--platform-soop);
   --color-platform-threads: var(--platform-threads);
   --color-platform-x: var(--platform-x);
+  --color-platform-soop-icon: var(--platform-soop-icon);
+  --color-platform-threads-icon: var(--platform-threads-icon);
+  --color-platform-x-icon: var(--platform-x-icon);
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);

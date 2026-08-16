@@ -55,7 +55,10 @@ import {
 import { getStoredExtensionInstallation } from "@/lib/browser/extension-installation"
 import { cn } from "@/lib/utils"
 import { countCharacters, platformLimits } from "@/lib/platforms/limits"
-import { platformToggleTone } from "@/lib/platforms/toggle-tone"
+import {
+  platformStatusTone,
+  platformToggleTone,
+} from "@/lib/platforms/toggle-tone"
 import {
   postFormSchema,
   requiresPostTitle,
@@ -517,13 +520,22 @@ export function PostEditor({
                         }
                       }}
                       className={cn(
-                        "flex size-10 items-center justify-center rounded-full border text-sm font-medium transition-colors",
+                        "relative flex size-10 items-center justify-center rounded-full border text-sm font-medium transition-colors",
                         selected
                           ? platformToggleTone[platform]
                           : "bg-card hover:bg-muted",
                         !isConnected && "cursor-not-allowed opacity-50"
                       )}
                     >
+                      {selected ? (
+                        <span
+                          aria-hidden="true"
+                          className={cn(
+                            "absolute -top-3 left-1/2 size-1.5 -translate-x-1/2 rounded-full",
+                            platformStatusTone[platform]
+                          )}
+                        />
+                      ) : null}
                       <PlatformLogo
                         platform={platform}
                         color={selected ? "currentColor" : undefined}
