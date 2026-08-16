@@ -19,7 +19,7 @@ export default async function DashboardPage() {
     <PostHistory initialPosts={posts}>
       <div
         aria-hidden="true"
-        className="pointer-events-none fixed inset-x-0 top-0 z-0 h-24 backdrop-blur-lg dashboard-top-blur-mask"
+        className="pointer-events-none fixed inset-x-0 top-0 z-0 h-24 bg-linear-to-b from-muted to-transparent"
       />
       <Link
         href="/dashboard"

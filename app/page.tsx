@@ -89,7 +89,7 @@ export default async function LandingPage({
         </h1>
         <div
           aria-hidden="true"
-          className="dashboard-top-blur-mask pointer-events-none absolute inset-x-0 top-0 z-10 h-24 backdrop-blur-lg"
+          className="pointer-events-none absolute inset-x-0 top-0 z-10 h-24 bg-linear-to-b from-muted to-transparent"
         />
         <div className="absolute inset-x-0 bottom-0 mx-auto flex w-full max-w-3xl flex-col gap-5 px-4 pt-20 sm:px-6">
           <div className="flex flex-col gap-5" aria-label="이전 작성 기록 예시">

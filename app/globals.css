@@ -171,10 +171,3 @@
     @apply font-sans;
   }
 }
-
-@layer utilities {
-  .dashboard-top-blur-mask {
-    -webkit-mask-image: linear-gradient(to bottom, black, transparent);
-    mask-image: linear-gradient(to bottom, black, transparent);
-  }
-}
