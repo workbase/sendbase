@@ -15,7 +15,6 @@ import { POST_HISTORY_PAGE_SIZE } from "@/lib/posts/constants"
 import { PlatformLogo } from "@/components/logos/platform-logo"
 import { Button } from "@/components/ui/button"
 import { platformLimits } from "@/lib/platforms/limits"
-import { platformToggleTone } from "@/lib/platforms/toggle-tone"
 import type { PostDetail } from "@/lib/types"
 
 const cardTiltClasses = ["-rotate-1", "rotate-0", "rotate-1"]
@@ -31,9 +30,11 @@ function cancelScrollToBottom(viewport: HTMLDivElement) {
   scrollAnimationFrames.delete(viewport)
 }
 
-export function usePostHistory() {
+export function usePostHistory(optional = false) {
   const context = useContext(PostHistoryContext)
-  if (!context) throw new Error("PostHistory 안에서 사용해야 합니다.")
+  if (!context && !optional) {
+    throw new Error("PostHistory 안에서 사용해야 합니다.")
+  }
   return context
 }
 
@@ -87,9 +88,9 @@ function getCardTiltClass(postId: string) {
 function PostMessage({ post }: { post: PostDetail }) {
   return (
     <article
-      className={`rounded-2xl bg-card px-5 py-4 sm:px-6 ${getCardTiltClass(post.id)}`}
+      className={`rounded-2xl bg-card p-5 sm:p-6 ${getCardTiltClass(post.id)}`}
     >
-      <div className="mb-3 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+      <div className="mb-2 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
         <h2 className="font-semibold tracking-tight">{post.title}</h2>
         <time
           className="text-xs text-muted-foreground"
@@ -112,13 +113,12 @@ function PostMessage({ post }: { post: PostDetail }) {
               }
               nativeButton={false}
               size="icon"
-              className={`rounded-full ${platformToggleTone[link.platform]}`}
+              className="rounded-full bg-muted hover:bg-muted"
               aria-label={platformLimits[link.platform].label}
               title={platformLimits[link.platform].label}
             >
               <PlatformLogo
                 platform={link.platform}
-                color="currentColor"
                 className="size-4"
               />
             </Button>

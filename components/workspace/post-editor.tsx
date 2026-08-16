@@ -1,6 +1,7 @@
 "use client"
 
 import {
+  useEffect,
   useLayoutEffect,
   useMemo,
   useRef,
@@ -21,6 +22,7 @@ import {
   AlignCenterIcon,
   AlignLeftIcon,
   AlignRightIcon,
+  ArrowRightIcon,
   BoldIcon,
   ImagePlusIcon,
   ItalicIcon,
@@ -42,6 +44,14 @@ import { usePostHistory } from "@/components/workspace/post-history"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
+import {
+  Popover,
+  PopoverContent,
+  PopoverDescription,
+  PopoverHeader,
+  PopoverTitle,
+  PopoverTrigger,
+} from "@/components/ui/popover"
 import { getStoredExtensionInstallation } from "@/lib/browser/extension-installation"
 import { cn } from "@/lib/utils"
 import { countCharacters, platformLimits } from "@/lib/platforms/limits"
@@ -59,6 +69,21 @@ import type {
 import { publishPlatforms } from "@/lib/types"
 
 const selectedPlatformsStorageKey = "sendbase:selected-post-platforms"
+const landingEditorTitle = "내 방송을 놓치는 팬이 없도록"
+const landingEditorContentHtml =
+  "<p>내 방송 공지는 정말 시청자를 모으고 있나요?</p><p>열성 팬들만 보는 곳에 쓰고 있진 않나요?</p><p> </p><p>알림을 안 켜둔 시청자도, 팬카페에 없는 팬도 나를 놓치지 않게.</p><p>방송에 들어오기만을 기다리는 대신, 팬들의 피드에 자연스럽게 스며드세요.</p>"
+const landingEditorPlainText =
+  "이번 주 금요일 저녁 8시에 새로운 콘텐츠와 함께 찾아갈게요.\n소소한 선물도 준비했으니, 놓치지 말고 함께해요!"
+const landingDefaultDestinations: PublishPlatform[] = [
+  "threads",
+  "discord",
+  "naver_cafe",
+]
+const loginProviders = [
+  { id: "chzzk", label: "치지직으로 계속하기" },
+  { id: "soop", label: "SOOP으로 계속하기" },
+  { id: "cime", label: "씨미로 계속하기" },
+] as const
 
 function subscribeToHydration() {
   return () => undefined
@@ -209,20 +234,40 @@ function runExtensionJob(job: ExtensionPublishJob) {
 
 export function PostEditor({
   connections,
+  loginError,
+  mode = "dashboard",
 }: {
   connections: PlatformConnection[]
+  loginError?: string
+  mode?: "dashboard" | "landing"
 }) {
-  const { addPost } = usePostHistory()
-  const defaultDestinations = useMemo(
+  const postHistory = usePostHistory(mode === "landing")
+  const connected = useMemo(
     () =>
-      connections.filter((item) => item.connected).map((item) => item.platform),
+      new Set(
+        connections
+          .filter((item) => item.connected)
+          .map((item) => item.platform)
+      ),
     [connections]
   )
-  const connected = useMemo(
-    () => new Set(defaultDestinations),
-    [defaultDestinations]
+  const defaultDestinations = useMemo(
+    () => {
+      if (mode === "landing") {
+        return landingDefaultDestinations.filter((platform) =>
+          connected.has(platform)
+        )
+      }
+
+      return Array.from(connected)
+    },
+    [connected, mode]
   )
-  const [plainText, setPlainText] = useState("")
+  const initialContentHtml =
+    mode === "landing" ? landingEditorContentHtml : "<p></p>"
+  const [plainText, setPlainText] = useState(
+    mode === "landing" ? landingEditorPlainText : ""
+  )
   const isDestinationsReady = useSyncExternalStore(
     subscribeToHydration,
     getClientHydrationSnapshot,
@@ -230,6 +275,15 @@ export function PostEditor({
   )
   const [isPublishing, startPublishing] = useTransition()
   const imageInputRef = useRef<HTMLInputElement>(null)
+  const previewImageUrlRef = useRef<string | null>(null)
+
+  useEffect(() => {
+    return () => {
+      if (previewImageUrlRef.current) {
+        URL.revokeObjectURL(previewImageUrlRef.current)
+      }
+    }
+  }, [])
 
   const {
     register,
@@ -241,13 +295,14 @@ export function PostEditor({
   } = useForm<PostFormValues>({
     resolver: zodResolver(postFormSchema),
     defaultValues: {
-      title: "",
-      contentHtml: "<p></p>",
+      title: mode === "landing" ? landingEditorTitle : "",
+      contentHtml: initialContentHtml,
       destinations: defaultDestinations,
     },
   })
   const selectedDestinations = useWatch({ control, name: "destinations" })
-  const shouldShowTitle = requiresPostTitle(selectedDestinations)
+  const shouldShowTitle =
+    mode === "landing" || requiresPostTitle(selectedDestinations)
   const strictestCharacterLimit = useMemo(() => {
     let strictest: {
       platform: PublishPlatform
@@ -268,6 +323,8 @@ export function PostEditor({
   }, [selectedDestinations])
 
   useLayoutEffect(() => {
+    if (mode === "landing") return
+
     const savedDestinations = readSavedDestinations()
     if (savedDestinations === null) {
       saveDestinations(defaultDestinations)
@@ -279,7 +336,7 @@ export function PostEditor({
         ),
       }))
     }
-  }, [connected, defaultDestinations, reset])
+  }, [connected, defaultDestinations, mode, reset])
 
   const editor = useEditor({
     immediatelyRender: false,
@@ -311,11 +368,11 @@ export function PostEditor({
         placeholder: "여러 플랫폼에 전할 이야기를 작성해 보세요…",
       }),
     ],
-    content: "<p></p>",
+    content: initialContentHtml,
     editorProps: {
       attributes: {
         class:
-          "min-h-80 px-7 py-4 text-base leading-8 outline-none sm:min-h-96 sm:px-10 sm:py-5 [&_a]:text-foreground [&_a]:underline [&_a]:underline-offset-4 [&_img]:my-6 [&_img]:max-h-96 [&_img]:max-w-full [&_img]:rounded-xl [&_img]:object-contain [&_p]:my-2",
+          "min-h-[min(20rem,33.333dvh)] px-7 py-4 text-base leading-8 outline-none sm:min-h-[min(24rem,33.333dvh)] sm:px-10 sm:py-5 [&_a]:text-foreground [&_a]:underline [&_a]:underline-offset-4 [&_img]:my-6 [&_img]:max-h-96 [&_img]:max-w-full [&_img]:rounded-xl [&_img]:object-contain [&_p]:my-2",
       },
     },
     onUpdate: ({ editor: currentEditor }) => {
@@ -346,6 +403,16 @@ export function PostEditor({
   }
 
   async function attachImage(file: File) {
+    if (mode === "landing") {
+      if (previewImageUrlRef.current) {
+        URL.revokeObjectURL(previewImageUrlRef.current)
+      }
+      const previewUrl = URL.createObjectURL(file)
+      previewImageUrlRef.current = previewUrl
+      editor?.chain().focus().setImage({ src: previewUrl, alt: file.name }).run()
+      return
+    }
+
     try {
       const form = new FormData()
       form.set("file", file)
@@ -388,7 +455,7 @@ export function PostEditor({
           )
         }
         const post = await getPostDetailAction(result.postId)
-        if (post) addPost(post)
+        if (post) postHistory?.addPost(post)
         const failures = result.results.filter((item) => !item.ok)
         const message =
           failures.length > 0
@@ -445,10 +512,12 @@ export function PostEditor({
                           ? field.value.filter((item) => item !== platform)
                           : [...field.value, platform]
                         field.onChange(destinations)
-                        saveDestinations(destinations)
+                        if (mode === "dashboard") {
+                          saveDestinations(destinations)
+                        }
                       }}
                       className={cn(
-                        "flex size-10 items-center justify-center rounded-lg border text-sm font-medium transition-colors",
+                        "flex size-10 items-center justify-center rounded-full border text-sm font-medium transition-colors",
                         selected
                           ? platformToggleTone[platform]
                           : "bg-card hover:bg-muted",
@@ -574,7 +643,7 @@ export function PostEditor({
         </div>
         <EditorContent
           editor={editor}
-          className="min-h-80 sm:min-h-96 [&_.tiptap_p.is-editor-empty:first-child::before]:pointer-events-none [&_.tiptap_p.is-editor-empty:first-child::before]:float-left [&_.tiptap_p.is-editor-empty:first-child::before]:h-0 [&_.tiptap_p.is-editor-empty:first-child::before]:text-muted-foreground/60 [&_.tiptap_p.is-editor-empty:first-child::before]:content-[attr(data-placeholder)]"
+          className="min-h-[min(20rem,33.333dvh)] sm:min-h-[min(24rem,33.333dvh)] [&_.tiptap_p.is-editor-empty:first-child::before]:pointer-events-none [&_.tiptap_p.is-editor-empty:first-child::before]:float-left [&_.tiptap_p.is-editor-empty:first-child::before]:h-0 [&_.tiptap_p.is-editor-empty:first-child::before]:text-muted-foreground/60 [&_.tiptap_p.is-editor-empty:first-child::before]:content-[attr(data-placeholder)]"
         />
         <div className="flex flex-wrap items-end justify-between gap-3 px-5 pt-5 pb-7 sm:px-8 sm:pt-8 sm:pb-7">
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
@@ -597,16 +666,64 @@ export function PostEditor({
               <span>글자 수 제한 없음</span>
             )}
           </div>
-          <Button
-            className="h-10 shadow-sm"
-            onClick={publish}
-            disabled={isPublishing}
-          >
-            <span>공지 작성하기</span>
-            {isPublishing ? (
-              <LoaderCircleIcon className="animate-spin" />
-            ) : null}
-          </Button>
+          {mode === "landing" ? (
+            <Popover defaultOpen={Boolean(loginError)}>
+              <PopoverTrigger
+                render={<Button className="h-10 shadow-sm" />}
+              >
+                평생 무료로 시작하기
+              </PopoverTrigger>
+              <PopoverContent align="end" side="top" sideOffset={10}>
+                <PopoverHeader className="px-1 pt-1 pb-0.5">
+                  <PopoverTitle>센드베이스 시작하기</PopoverTitle>
+                  <PopoverDescription>
+                    로그인과 회원가입은 하나로 연결됩니다.
+                  </PopoverDescription>
+                </PopoverHeader>
+                {loginError ? (
+                  <p
+                    role="alert"
+                    className="rounded-md bg-destructive/10 px-2.5 py-2 text-xs text-destructive"
+                  >
+                    {loginError}
+                  </p>
+                ) : null}
+                <div className="flex flex-col gap-1.5">
+                  {loginProviders.map((provider) => (
+                    <Button
+                      key={provider.id}
+                      render={<a href={`/api/auth/${provider.id}`} />}
+                      nativeButton={false}
+                      variant="secondary"
+                      className="h-11 w-full justify-start gap-3 px-2.5 shadow-none"
+                    >
+                      <span className="flex size-7 items-center justify-center rounded-lg bg-muted">
+                        <PlatformLogo
+                          platform={provider.id}
+                          className="size-4"
+                        />
+                      </span>
+                      <span className="flex-1 text-left">
+                        {provider.label}
+                      </span>
+                      <ArrowRightIcon className="text-muted-foreground" />
+                    </Button>
+                  ))}
+                </div>
+              </PopoverContent>
+            </Popover>
+          ) : (
+            <Button
+              className="h-10 shadow-sm"
+              onClick={publish}
+              disabled={isPublishing}
+            >
+              <span>공지 작성하기</span>
+              {isPublishing ? (
+                <LoaderCircleIcon className="animate-spin" />
+              ) : null}
+            </Button>
+          )}
         </div>
       </Card>
     </div>
