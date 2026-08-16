@@ -1,10 +1,31 @@
 import { z } from "zod"
-import { publishPlatforms } from "@/lib/types"
+import { publishPlatforms, type PublishPlatform } from "@/lib/types"
 
-export const postFormSchema = z.object({
-  title: z.string().trim().max(200, "제목은 200자 이하여야 합니다."),
-  contentHtml: z.string().max(1_000_000, "본문이 너무 깁니다."),
-  destinations: z.array(z.enum(publishPlatforms)).min(1, "게시할 플랫폼을 선택해 주세요."),
-})
+const titleRequiredPlatforms: readonly PublishPlatform[] = [
+  "naver_cafe",
+  "soop",
+]
+
+export function requiresPostTitle(platforms: readonly PublishPlatform[]) {
+  return platforms.some((platform) => titleRequiredPlatforms.includes(platform))
+}
+
+export const postFormSchema = z
+  .object({
+    title: z.string().trim().max(200, "제목은 200자 이하여야 합니다."),
+    contentHtml: z.string().max(1_000_000, "본문이 너무 깁니다."),
+    destinations: z
+      .array(z.enum(publishPlatforms))
+      .min(1, "게시할 플랫폼을 선택해 주세요."),
+  })
+  .superRefine((value, context) => {
+    if (requiresPostTitle(value.destinations) && !value.title) {
+      context.addIssue({
+        code: "custom",
+        message: "제목을 입력해 주세요.",
+        path: ["title"],
+      })
+    }
+  })
 
 export type PostFormValues = z.infer<typeof postFormSchema>

@@ -3,7 +3,7 @@
 import { MonitorIcon, MoonIcon, SunIcon } from "lucide-react"
 import { useTheme } from "next-themes"
 
-import { Button } from "@/components/ui/button"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
 const themes = [
   { value: "light", label: "라이트", icon: SunIcon },
@@ -15,19 +15,17 @@ export function ThemeSelector() {
   const { theme, setTheme } = useTheme()
 
   return (
-    <div className="flex flex-wrap gap-2" role="group" aria-label="화면 테마">
-      {themes.map(({ value, label, icon: Icon }) => (
-        <Button
-          key={value}
-          type="button"
-          variant={theme === value ? "default" : "outline"}
-          aria-pressed={theme === value}
-          onClick={() => setTheme(value)}
-        >
-          <Icon />
-          {label}
-        </Button>
-      ))}
-    </div>
+    <Tabs
+      value={theme ?? "system"}
+      onValueChange={(value) => setTheme(String(value))}
+    >
+      <TabsList aria-label="화면 테마">
+        {themes.map(({ value, label, icon: Icon }) => (
+          <TabsTrigger key={value} value={value} aria-label={label} title={label}>
+            <Icon />
+          </TabsTrigger>
+        ))}
+      </TabsList>
+    </Tabs>
   )
 }

@@ -8,6 +8,7 @@ import type {
   PublishedPostLink,
   PublishPlatform,
 } from "@/lib/types"
+import { POST_HISTORY_PAGE_SIZE } from "@/lib/posts/constants"
 
 const recentPostLinkOrder: PublishPlatform[] = [
   "x",
@@ -60,7 +61,7 @@ export const getPostHistory = cache(
   async (
     userId: string,
     before?: string,
-    limit = 20
+    limit = POST_HISTORY_PAGE_SIZE
   ): Promise<PostDetail[]> => {
     const supabase = createAdminClient()
     let query = supabase

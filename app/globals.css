@@ -54,6 +54,12 @@
   --radius-4xl: calc(var(--radius) * 2.6);
 }
 
+@utility editor-card-uplight {
+  box-shadow:
+    0 1rem 2rem -1rem color-mix(in oklab, var(--foreground) 0%, transparent),
+    0 10rem 4rem 0rem color-mix(in oklab, var(--foreground) 6%, transparent);
+}
+
 :root {
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);

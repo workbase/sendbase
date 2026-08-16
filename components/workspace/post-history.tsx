@@ -8,14 +8,17 @@ import {
   useRef,
   useState,
 } from "react"
-import { ExternalLinkIcon, LoaderCircleIcon } from "lucide-react"
+import { LoaderCircleIcon } from "lucide-react"
 
 import { getOlderPostsAction } from "@/app/actions/posts"
+import { POST_HISTORY_PAGE_SIZE } from "@/lib/posts/constants"
 import { PlatformLogo } from "@/components/logos/platform-logo"
 import { Button } from "@/components/ui/button"
 import { platformLimits } from "@/lib/platforms/limits"
+import { platformToggleTone } from "@/lib/platforms/toggle-tone"
 import type { PostDetail } from "@/lib/types"
 
+const cardTiltClasses = ["-rotate-1", "rotate-0", "rotate-1"]
 const PostHistoryContext = createContext<{
   addPost: (post: PostDetail) => void
 } | null>(null)
@@ -71,9 +74,21 @@ function formattedDate(value: string) {
   }).format(new Date(value))
 }
 
+function getCardTiltClass(postId: string) {
+  let hash = 0
+
+  for (let index = 0; index < postId.length; index += 1) {
+    hash = (hash * 31 + postId.charCodeAt(index)) | 0
+  }
+
+  return cardTiltClasses[Math.abs(hash) % cardTiltClasses.length]
+}
+
 function PostMessage({ post }: { post: PostDetail }) {
   return (
-    <article className="rounded-2xl bg-card px-5 py-4 sm:px-6">
+    <article
+      className={`rounded-2xl bg-card px-5 py-4 sm:px-6 ${getCardTiltClass(post.id)}`}
+    >
       <div className="mb-3 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
         <h2 className="font-semibold tracking-tight">{post.title}</h2>
         <time
@@ -88,7 +103,7 @@ function PostMessage({ post }: { post: PostDetail }) {
         dangerouslySetInnerHTML={{ __html: post.contentHtml }}
       />
       {post.links.length > 0 ? (
-        <div className="mt-4 flex flex-wrap gap-2 border-t pt-3">
+        <div className="mt-4 flex flex-wrap gap-2">
           {post.links.map((link) => (
             <Button
               key={link.platform}
@@ -96,12 +111,16 @@ function PostMessage({ post }: { post: PostDetail }) {
                 <a href={link.url} target="_blank" rel="noopener noreferrer" />
               }
               nativeButton={false}
-              size="sm"
-              variant="outline"
+              size="icon"
+              className={`rounded-full ${platformToggleTone[link.platform]}`}
+              aria-label={platformLimits[link.platform].label}
+              title={platformLimits[link.platform].label}
             >
-              <PlatformLogo platform={link.platform} className="size-3.5" />
-              {platformLimits[link.platform].label}
-              <ExternalLinkIcon data-icon="inline-end" />
+              <PlatformLogo
+                platform={link.platform}
+                color="currentColor"
+                className="size-4"
+              />
             </Button>
           ))}
         </div>
@@ -127,7 +146,9 @@ export function PostHistory({
   const isLoadingRef = useRef(false)
   const lastScrollTopRef = useRef(0)
   const [posts, setPosts] = useState(() => [...initialPosts].reverse())
-  const [hasMore, setHasMore] = useState(initialPosts.length === 20)
+  const [hasMore, setHasMore] = useState(
+    initialPosts.length === POST_HISTORY_PAGE_SIZE
+  )
   const [isLoading, setIsLoading] = useState(false)
   const [isInitialPositioned, setIsInitialPositioned] = useState(false)
 
@@ -210,7 +231,7 @@ export function PostHistory({
                 ...current,
               ]
             })
-            setHasMore(nextPosts.length === 20)
+            setHasMore(nextPosts.length === POST_HISTORY_PAGE_SIZE)
           })
           .catch(() => {
             previousHeightRef.current = null

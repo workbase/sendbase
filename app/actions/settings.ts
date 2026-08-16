@@ -17,6 +17,26 @@ const boardSettingsSchema = z.object({
   }),
 })
 
+const apiPlatformSchema = z.enum(["threads", "x", "discord"])
+
+export async function disconnectPlatformAction(formData: FormData) {
+  const user = await requireUser()
+  const parsed = apiPlatformSchema.safeParse(formData.get("platform"))
+  if (!parsed.success) throw new Error("지원하지 않는 플랫폼입니다.")
+
+  const supabase = createAdminClient()
+  const { error } = await supabase
+    .from("platform_connections")
+    .delete()
+    .eq("user_id", user.id)
+    .eq("platform", parsed.data)
+
+  if (error) throw new Error(`연결을 해제하지 못했습니다: ${error.message}`)
+
+  revalidatePath("/settings")
+  revalidatePath("/dashboard")
+}
+
 export async function saveBoardSettingsAction(input: unknown) {
   const user = await requireUser()
   const parsed = boardSettingsSchema.safeParse(input)

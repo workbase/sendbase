@@ -6,25 +6,30 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import {
   ArrowLeftIcon,
   CheckCircle2Icon,
-  ExternalLinkIcon,
+  LinkIcon,
   LoaderCircleIcon,
   LogOutIcon,
   PuzzleIcon,
   SaveIcon,
+  UnlinkIcon,
 } from "lucide-react"
 import { useForm } from "react-hook-form"
 import { z } from "zod"
 
 import { logoutAction } from "@/app/actions/auth"
-import { saveBoardSettingsAction } from "@/app/actions/settings"
+import {
+  disconnectPlatformAction,
+  saveBoardSettingsAction,
+} from "@/app/actions/settings"
 import { PlatformLogo } from "@/components/logos/platform-logo"
 import { ThemeSelector } from "@/components/settings/theme-selector"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { platformToggleTone } from "@/lib/platforms/toggle-tone"
 import type { AppUser, LoginProvider, PlatformConnection } from "@/lib/types"
 
 const schema = z.object({
@@ -120,109 +125,128 @@ export function SettingsForm({
         </div>
       </div>
 
-      <Card>
-        <CardHeader className="border-b">
-          <CardTitle>로그인 정보</CardTitle>
-          <p className="text-sm text-muted-foreground">
-            현재 Sendbase에 로그인한 계정입니다.
-          </p>
-        </CardHeader>
-        <CardContent className="flex items-center justify-between gap-4 pt-1">
-          <div className="flex min-w-0 items-center gap-3">
-            <Avatar size="lg">
-              {user.avatarUrl ? (
-                <AvatarImage src={user.avatarUrl} alt="" />
-              ) : null}
-              <AvatarFallback>
-                {user.displayName.slice(0, 1).toUpperCase()}
-              </AvatarFallback>
-            </Avatar>
-            <div className="min-w-0">
-              <p className="truncate font-medium">{user.displayName}</p>
+      <section className="space-y-3">
+        <h2 className="text-lg font-semibold tracking-tight">로그인 정보</h2>
+        <Card>
+          <CardContent className="flex items-center justify-between gap-4">
+            <div className="flex min-w-0 items-center gap-3">
+              <Avatar size="lg">
+                {user.avatarUrl ? (
+                  <AvatarImage src={user.avatarUrl} alt="" />
+                ) : null}
+                <AvatarFallback>
+                  {user.displayName.slice(0, 1).toUpperCase()}
+                </AvatarFallback>
+              </Avatar>
+              <div className="min-w-0">
+                <p className="truncate font-medium">{user.displayName}</p>
+                <p className="mt-0.5 text-sm text-muted-foreground">
+                  로그인 플랫폼:{" "}
+                  {user.loginProviders
+                    .map((provider) => loginProviderNames[provider])
+                    .join(", ") || "알 수 없음"}
+                </p>
+              </div>
+            </div>
+            <form action={logoutAction}>
+              <Button type="submit" variant="outline">
+                <LogOutIcon />
+                로그아웃
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
+      </section>
+
+      <section className="space-y-3">
+        <h2 className="text-lg font-semibold tracking-tight">테마</h2>
+        <Card>
+          <CardContent className="flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <p className="font-medium">화면 테마</p>
               <p className="mt-0.5 text-sm text-muted-foreground">
-                로그인 플랫폼:{" "}
-                {user.loginProviders
-                  .map((provider) => loginProviderNames[provider])
-                  .join(", ") || "알 수 없음"}
+                이 브라우저에서 사용할 화면 테마를 선택하세요.
               </p>
             </div>
-          </div>
-          <form action={logoutAction}>
-            <Button type="submit" variant="outline">
-              <LogOutIcon />
-              로그아웃
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
+            <ThemeSelector />
+          </CardContent>
+        </Card>
+      </section>
 
-      <Card>
-        <CardHeader className="border-b">
-          <CardTitle>테마</CardTitle>
-          <p className="text-sm text-muted-foreground">
-            이 브라우저에서 사용할 화면 테마를 선택하세요.
-          </p>
-        </CardHeader>
-        <CardContent className="pt-1">
-          <ThemeSelector />
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader className="border-b">
-          <CardTitle>API 채널 연결</CardTitle>
-          <p className="text-sm text-muted-foreground">
-            각 플랫폼의 공식 인증 화면에서 게시 권한을 승인합니다.
-          </p>
-        </CardHeader>
-        <CardContent className="divide-y p-0">
-          {apiPlatforms.map((item) => {
-            const connection = byPlatform.get(item.platform)
-            return (
-              <div
-                key={item.platform}
-                className="flex flex-wrap items-center gap-4 px-4 py-4 sm:px-6"
-              >
-                <span className="flex size-10 items-center justify-center rounded-xl bg-muted">
-                  <PlatformLogo platform={item.platform} className="size-5" />
-                </span>
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
-                    <p className="font-medium">{item.name}</p>
-                    {connection?.connected ? (
-                      <Badge variant="secondary">
-                        <CheckCircle2Icon />
-                        연결됨
-                      </Badge>
-                    ) : null}
-                  </div>
-                  <p className="mt-0.5 text-sm text-muted-foreground">
-                    {connection?.displayName ?? item.description}
-                  </p>
-                </div>
-                <Button
-                  render={<a href={`/api/connect/${item.platform}`} />}
-                  nativeButton={false}
-                  variant={connection?.connected ? "outline" : "default"}
+      <section className="space-y-3">
+        <h2 className="text-lg font-semibold tracking-tight">API 채널 연결</h2>
+        <Card className="py-0">
+          <CardContent className="divide-y p-0">
+            {apiPlatforms.map((item) => {
+              const connection = byPlatform.get(item.platform)
+              return (
+                <div
+                  key={item.platform}
+                  className="flex flex-wrap items-center gap-4 px-4 py-4"
                 >
-                  <ExternalLinkIcon />
-                  {connection?.connected ? "다시 연결" : "연결하기"}
-                </Button>
-              </div>
-            )
-          })}
-        </CardContent>
-      </Card>
+                  <span
+                    className={`flex size-10 items-center justify-center rounded-xl ${
+                      connection?.connected
+                        ? platformToggleTone[item.platform]
+                        : "bg-muted"
+                    }`}
+                  >
+                    <PlatformLogo
+                      platform={item.platform}
+                      color={connection?.connected ? "currentColor" : undefined}
+                      className="size-6"
+                    />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <p className="font-medium">{item.name}</p>
+                      {connection?.connected ? (
+                        <Badge variant="secondary">
+                          <CheckCircle2Icon />
+                          연결됨
+                        </Badge>
+                      ) : null}
+                    </div>
+                    <p className="mt-0.5 text-sm text-muted-foreground">
+                      {connection?.connected
+                        ? connection.displayName ?? item.description
+                        : "연결되지 않음"}
+                    </p>
+                  </div>
+                  {connection?.connected ? (
+                    <form action={disconnectPlatformAction}>
+                      <Button
+                        type="submit"
+                        name="platform"
+                        value={item.platform}
+                        variant="secondary"
+                      >
+                        <UnlinkIcon />
+                        연결 해제
+                      </Button>
+                    </form>
+                  ) : (
+                    <Button
+                      render={<a href={`/api/connect/${item.platform}`} />}
+                      nativeButton={false}
+                    >
+                      <LinkIcon />
+                      연결하기
+                    </Button>
+                  )}
+                </div>
+              )
+            })}
+          </CardContent>
+        </Card>
+      </section>
 
-      <form onSubmit={onSubmit}>
+      <form className="space-y-3" onSubmit={onSubmit}>
+        <h2 className="text-lg font-semibold tracking-tight">
+          확장 프로그램 게시판
+        </h2>
         <Card>
-          <CardHeader className="border-b">
-            <CardTitle>확장 프로그램 게시판</CardTitle>
-            <p className="text-sm text-muted-foreground">
-              네이버 카페와 SOOP 게시판 자동 작성에 사용할 대상을 지정합니다.
-            </p>
-          </CardHeader>
-          <CardContent className="space-y-6 pt-1">
+          <CardContent className="space-y-6">
             <section className="space-y-3">
               <div className="flex items-center gap-2">
                 <span className="flex size-7 items-center justify-center rounded-lg bg-muted">

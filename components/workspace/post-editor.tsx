@@ -42,14 +42,14 @@ import { usePostHistory } from "@/components/workspace/post-history"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import { Separator } from "@/components/ui/separator"
 import { cn } from "@/lib/utils"
+import { countCharacters, platformLimits } from "@/lib/platforms/limits"
+import { platformToggleTone } from "@/lib/platforms/toggle-tone"
 import {
-  countCharacters,
-  countLinks,
-  platformLimits,
-} from "@/lib/platforms/limits"
-import { postFormSchema, type PostFormValues } from "@/lib/posts/schema"
+  postFormSchema,
+  requiresPostTitle,
+  type PostFormValues,
+} from "@/lib/posts/schema"
 import type {
   ExtensionPublishJob,
   PlatformConnection,
@@ -69,14 +69,6 @@ function getClientHydrationSnapshot() {
 
 function getServerHydrationSnapshot() {
   return false
-}
-
-const platformToggleTone: Record<PublishPlatform, string> = {
-  threads: "bg-platform-threads text-white",
-  x: "bg-platform-x text-white",
-  discord: "bg-platform-discord text-white",
-  naver_cafe: "bg-platform-naver-cafe text-white",
-  soop: "bg-platform-soop text-white",
 }
 
 function readSavedDestinations(): PublishPlatform[] | null {
@@ -258,7 +250,6 @@ export function PostEditor({
     [defaultDestinations]
   )
   const [plainText, setPlainText] = useState("")
-  const [imageCount, setImageCount] = useState(0)
   const isDestinationsReady = useSyncExternalStore(
     subscribeToHydration,
     getClientHydrationSnapshot,
@@ -283,6 +274,25 @@ export function PostEditor({
     },
   })
   const selectedDestinations = useWatch({ control, name: "destinations" })
+  const shouldShowTitle = requiresPostTitle(selectedDestinations)
+  const strictestCharacterLimit = useMemo(() => {
+    let strictest: {
+      platform: PublishPlatform
+      maxCharacters: number
+    } | null = null
+
+    for (const platform of selectedDestinations) {
+      const maxCharacters = platformLimits[platform].maxCharacters
+      if (
+        maxCharacters !== null &&
+        (strictest === null || maxCharacters < strictest.maxCharacters)
+      ) {
+        strictest = { platform, maxCharacters }
+      }
+    }
+
+    return strictest
+  }, [selectedDestinations])
 
   useLayoutEffect(() => {
     const savedDestinations = readSavedDestinations()
@@ -332,14 +342,13 @@ export function PostEditor({
     editorProps: {
       attributes: {
         class:
-          "min-h-80 px-7 py-6 text-base leading-8 outline-none sm:min-h-96 sm:px-10 sm:py-8 [&_a]:text-foreground [&_a]:underline [&_a]:underline-offset-4 [&_img]:my-6 [&_img]:max-h-96 [&_img]:max-w-full [&_img]:rounded-xl [&_img]:object-contain [&_p]:my-2",
+          "min-h-80 px-7 py-4 text-base leading-8 outline-none sm:min-h-96 sm:px-10 sm:py-5 [&_a]:text-foreground [&_a]:underline [&_a]:underline-offset-4 [&_img]:my-6 [&_img]:max-h-96 [&_img]:max-w-full [&_img]:rounded-xl [&_img]:object-contain [&_p]:my-2",
       },
     },
     onUpdate: ({ editor: currentEditor }) => {
       const html = currentEditor.getHTML()
       setValue("contentHtml", html, { shouldDirty: true, shouldValidate: true })
       setPlainText(currentEditor.getText({ blockSeparator: "\n" }))
-      setImageCount((html.match(/<img\b/g) ?? []).length)
     },
   })
 
@@ -427,7 +436,6 @@ export function PostEditor({
         })
         editor?.commands.setContent("<p></p>")
         setPlainText("")
-        setImageCount(0)
       } catch (error) {
         toast.error(
           error instanceof Error ? error.message : "게시하지 못했습니다."
@@ -479,7 +487,7 @@ export function PostEditor({
                       <PlatformLogo
                         platform={platform}
                         color={selected ? "currentColor" : undefined}
-                        className="size-4"
+                        className="size-5"
                       />
                     </button>
                   )
@@ -495,22 +503,28 @@ export function PostEditor({
         )}
       />
 
-      <Card radius="top" className="gap-0 py-0">
-        <div className="px-7 pt-6 sm:px-10 sm:pt-8">
-          <Input
-            {...register("title")}
-            aria-invalid={Boolean(errors.title)}
-            placeholder="게시물 제목"
-            className="h-auto rounded-none border-0 bg-transparent px-0 py-2 text-2xl font-semibold tracking-tight shadow-none focus-visible:ring-0 md:text-2xl dark:bg-transparent"
-          />
-          {errors.title ? (
-            <p className="mt-1 text-xs text-destructive">
-              {errors.title.message}
-            </p>
-          ) : null}
-        </div>
-        <Separator className="mt-4" />
-        <div className="flex flex-wrap items-center gap-0.5 border-b px-3 py-2 sm:px-6">
+      <Card radius="top" className="gap-0 py-0 editor-card-uplight">
+        {shouldShowTitle ? (
+          <div className="px-7 pt-6 pb-4 sm:px-10 sm:pt-8 sm:pb-5">
+            <Input
+              {...register("title")}
+              aria-invalid={Boolean(errors.title)}
+              placeholder="게시물 제목"
+              className="h-auto rounded-none border-0 bg-transparent px-0 py-2 text-2xl font-semibold tracking-tight shadow-none placeholder:text-muted-foreground/60 focus-visible:ring-0 md:text-2xl dark:bg-transparent"
+            />
+            {errors.title ? (
+              <p className="mt-1 text-xs text-destructive">
+                {errors.title.message}
+              </p>
+            ) : null}
+          </div>
+        ) : null}
+        <div
+          className={cn(
+            "flex flex-wrap items-center gap-0.5 px-7 py-2 sm:px-10",
+            !shouldShowTitle && "pt-7 sm:pt-10"
+          )}
+        >
           <ToolbarButton
             label="굵게"
             active={editor?.isActive("bold")}
@@ -589,39 +603,28 @@ export function PostEditor({
         </div>
         <EditorContent
           editor={editor}
-          className="min-h-80 sm:min-h-96 [&_.tiptap_p.is-editor-empty:first-child::before]:pointer-events-none [&_.tiptap_p.is-editor-empty:first-child::before]:float-left [&_.tiptap_p.is-editor-empty:first-child::before]:h-0 [&_.tiptap_p.is-editor-empty:first-child::before]:text-muted-foreground [&_.tiptap_p.is-editor-empty:first-child::before]:content-[attr(data-placeholder)]"
+          className="min-h-80 sm:min-h-96 [&_.tiptap_p.is-editor-empty:first-child::before]:pointer-events-none [&_.tiptap_p.is-editor-empty:first-child::before]:float-left [&_.tiptap_p.is-editor-empty:first-child::before]:h-0 [&_.tiptap_p.is-editor-empty:first-child::before]:text-muted-foreground/60 [&_.tiptap_p.is-editor-empty:first-child::before]:content-[attr(data-placeholder)]"
         />
-        <div className="flex flex-wrap items-end justify-between gap-3 px-5 py-5 sm:px-8 sm:py-8">
+        <div className="flex flex-wrap items-end justify-between gap-3 px-5 pt-5 pb-7 sm:px-8 sm:pt-8 sm:pb-7">
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
-            {selectedDestinations.map((platform) => {
-              const limit = platformLimits[platform]
-              const count = countCharacters(platform, plainText)
-              const invalid =
-                Boolean(limit.maxCharacters && count > limit.maxCharacters) ||
-                Boolean(limit.maxImages && imageCount > limit.maxImages)
-
-              return (
-                <span
-                  key={platform}
-                  className={invalid ? "text-destructive" : undefined}
-                >
-                  {limit.label}{" "}
-                  {limit.maxCharacters
-                    ? `${count}/${limit.maxCharacters}자`
-                    : "글자 수 제한 없음"}
-                  {limit.maxImages
-                    ? ` · 이미지 ${imageCount}/${limit.maxImages}`
-                    : ""}
-                </span>
-              )
-            })}
             {selectedDestinations.length === 0 ? (
               <span>플랫폼을 선택해 주세요.</span>
-            ) : null}
-            <span>
-              이미지 {imageCount}개 · 링크 {countLinks(plainText)}개 ·{" "}
-              {Array.from(plainText).length.toLocaleString("ko-KR")}자
-            </span>
+            ) : strictestCharacterLimit ? (
+              <span
+                className={
+                  countCharacters(strictestCharacterLimit.platform, plainText) >
+                  strictestCharacterLimit.maxCharacters
+                    ? "text-destructive"
+                    : undefined
+                }
+              >
+                {platformLimits[strictestCharacterLimit.platform].label} 기준{" "}
+                {countCharacters(strictestCharacterLimit.platform, plainText)}/
+                {strictestCharacterLimit.maxCharacters}자
+              </span>
+            ) : (
+              <span>글자 수 제한 없음</span>
+            )}
           </div>
           <Button
             className="h-10 shadow-sm"

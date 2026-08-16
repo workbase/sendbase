@@ -25,7 +25,7 @@ import type {
   PublishResult,
 } from "@/lib/types"
 
-const historyCursorSchema = z.string().datetime().optional()
+const historyCursorSchema = z.string().datetime({ offset: true }).optional()
 
 export async function getOlderPostsAction(before?: string) {
   const user = await requireUser()
@@ -114,8 +114,6 @@ export async function publishPostAction(
     throw new Error(
       parsed.error.issues[0]?.message ?? "입력값을 확인해 주세요."
     )
-  if (!parsed.data.title) throw new Error("제목을 입력해 주세요.")
-
   const sanitized = sanitizeEditorHtml(parsed.data.contentHtml)
   const plainText = htmlToPlainText(sanitized)
   const images = imageUrlsFromHtml(sanitized)
