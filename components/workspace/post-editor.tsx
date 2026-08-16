@@ -1,6 +1,6 @@
 "use client"
 
-import { useRef, useState, useTransition } from "react"
+import { useEffect, useMemo, useRef, useState, useTransition } from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { EditorContent, useEditor } from "@tiptap/react"
 import Image from "@tiptap/extension-image"
@@ -25,11 +25,13 @@ import {
 import { Controller, useForm, useWatch } from "react-hook-form"
 
 import {
+  getPostDetailAction,
   publishPostAction,
   recordExtensionResultAction,
   uploadPostImageAction,
 } from "@/app/actions/posts"
 import { PlatformLogo } from "@/components/logos/platform-logo"
+import { usePostHistory } from "@/components/workspace/post-history"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -46,6 +48,9 @@ import type {
   PlatformConnection,
   PublishPlatform,
 } from "@/lib/types"
+import { publishPlatforms } from "@/lib/types"
+
+const selectedPlatformsStorageKey = "sendbase:selected-post-platforms"
 
 const platformToggleTone: Record<PublishPlatform, string> = {
   threads: "bg-platform-threads text-white",
@@ -53,6 +58,41 @@ const platformToggleTone: Record<PublishPlatform, string> = {
   discord: "bg-platform-discord text-white",
   naver_cafe: "bg-platform-naver-cafe text-white",
   soop: "bg-platform-soop text-white",
+}
+
+function readSavedDestinations(): PublishPlatform[] | null {
+  try {
+    const value: unknown = JSON.parse(
+      window.localStorage.getItem(selectedPlatformsStorageKey) ?? "null"
+    )
+
+    if (!Array.isArray(value)) return null
+
+    const platformSet = new Set<PublishPlatform>()
+    for (const platform of value) {
+      if (
+        typeof platform === "string" &&
+        publishPlatforms.includes(platform as PublishPlatform)
+      ) {
+        platformSet.add(platform as PublishPlatform)
+      }
+    }
+
+    return Array.from(platformSet)
+  } catch {
+    return null
+  }
+}
+
+function saveDestinations(destinations: PublishPlatform[]) {
+  try {
+    window.localStorage.setItem(
+      selectedPlatformsStorageKey,
+      JSON.stringify(destinations)
+    )
+  } catch {
+    // Browsers can deny storage access in private or restricted contexts.
+  }
 }
 
 function ToolbarButton({
@@ -188,10 +228,16 @@ export function PostEditor({
 }: {
   connections: PlatformConnection[]
 }) {
-  const connected = new Set(
-    connections.filter((item) => item.connected).map((item) => item.platform)
+  const { addPost } = usePostHistory()
+  const defaultDestinations = useMemo(
+    () =>
+      connections.filter((item) => item.connected).map((item) => item.platform),
+    [connections]
   )
-  const defaultDestinations = Array.from(connected)
+  const connected = useMemo(
+    () => new Set(defaultDestinations),
+    [defaultDestinations]
+  )
   const [plainText, setPlainText] = useState("")
   const [imageCount, setImageCount] = useState(0)
   const [notice, setNotice] = useState<{
@@ -218,10 +264,27 @@ export function PostEditor({
   })
   const selectedDestinations = useWatch({ control, name: "destinations" })
 
+  useEffect(() => {
+    const savedDestinations = readSavedDestinations()
+    if (savedDestinations === null) {
+      saveDestinations(defaultDestinations)
+      return
+    }
+
+    reset((values) => ({
+      ...values,
+      destinations: savedDestinations.filter((platform) =>
+        connected.has(platform)
+      ),
+    }))
+  }, [connected, defaultDestinations, reset])
+
   const editor = useEditor({
     immediatelyRender: false,
     extensions: [
       StarterKit.configure({
+        link: false,
+        underline: false,
         heading: false,
         blockquote: false,
         bulletList: false,
@@ -331,6 +394,8 @@ export function PostEditor({
             )
           }
         }
+        const post = await getPostDetailAction(result.postId)
+        if (post) addPost(post)
         const failures = result.results.filter((item) => !item.ok)
         setNotice({
           type: failures.length > 0 ? "error" : "success",
@@ -342,7 +407,7 @@ export function PostEditor({
         reset({
           title: "",
           contentHtml: "<p></p>",
-          destinations: defaultDestinations,
+          destinations: values.destinations,
         })
         editor?.commands.setContent("<p></p>")
         setPlainText("")
@@ -357,7 +422,7 @@ export function PostEditor({
   })
 
   return (
-    <div className="mx-auto w-full max-w-6xl">
+    <div className="mx-auto w-full max-w-3xl">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-semibold tracking-tight">새 게시물</h1>
@@ -384,13 +449,13 @@ export function PostEditor({
                       type="button"
                       disabled={!isConnected}
                       aria-pressed={selected}
-                      onClick={() =>
-                        field.onChange(
-                          selected
-                            ? field.value.filter((item) => item !== platform)
-                            : [...field.value, platform]
-                        )
-                      }
+                      onClick={() => {
+                        const destinations = selected
+                          ? field.value.filter((item) => item !== platform)
+                          : [...field.value, platform]
+                        field.onChange(destinations)
+                        saveDestinations(destinations)
+                      }}
                       className={cn(
                         "flex h-10 items-center gap-2 rounded-lg border px-3 text-sm font-medium transition-colors",
                         selected

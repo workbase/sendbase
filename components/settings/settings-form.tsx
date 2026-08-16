@@ -1,8 +1,10 @@
 "use client"
 
+import Link from "next/link"
 import { useState, useTransition } from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
 import {
+  ArrowLeftIcon,
   CheckCircle2Icon,
   ExternalLinkIcon,
   LoaderCircleIcon,
@@ -88,12 +90,23 @@ export function SettingsForm({
   })
 
   return (
-    <div className="mx-auto w-full max-w-4xl space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">설정</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          게시 계정과 브라우저 자동화 대상을 관리합니다.
-        </p>
+    <div className="mx-auto w-full max-w-3xl space-y-6 px-4 py-8 sm:px-6 sm:py-10">
+      <div className="space-y-4">
+        <Button
+          render={<Link href="/dashboard" />}
+          nativeButton={false}
+          size="sm"
+          variant="outline"
+        >
+          <ArrowLeftIcon />
+          메인으로 돌아가기
+        </Button>
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">설정</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            게시 계정과 브라우저 자동화 대상을 관리합니다.
+          </p>
+        </div>
       </div>
 
       <Card>

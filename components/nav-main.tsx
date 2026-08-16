@@ -1,5 +1,7 @@
 "use client"
 
+import Link from "next/link"
+
 import {
   Collapsible,
   CollapsibleContent,
@@ -44,7 +46,7 @@ export function NavMain({
           >
             <SidebarMenuButton
               tooltip={item.title}
-              render={<a href={item.url} />}
+              render={<Link href={item.url} />}
             >
               {item.icon}
               <span>{item.title}</span>
@@ -56,15 +58,16 @@ export function NavMain({
                     <SidebarMenuAction className="aria-expanded:rotate-90" />
                   }
                 >
-                  <ChevronRightIcon
-                  />
+                  <ChevronRightIcon />
                   <span className="sr-only">Toggle</span>
                 </CollapsibleTrigger>
                 <CollapsibleContent>
                   <SidebarMenuSub>
                     {item.items?.map((subItem) => (
                       <SidebarMenuSubItem key={subItem.title}>
-                        <SidebarMenuSubButton render={<a href={subItem.url} />}>
+                        <SidebarMenuSubButton
+                          render={<Link href={subItem.url} />}
+                        >
                           <span>{subItem.title}</span>
                         </SidebarMenuSubButton>
                       </SidebarMenuSubItem>

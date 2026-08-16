@@ -56,6 +56,41 @@ export const getPosts = cache(async (userId: string): Promise<PostSummary[]> => 
   }))
 })
 
+export const getPostHistory = cache(
+  async (
+    userId: string,
+    before?: string,
+    limit = 20
+  ): Promise<PostDetail[]> => {
+    const supabase = createAdminClient()
+    let query = supabase
+      .from("posts")
+      .select(
+        "id, title, content_html, content_text, image_urls, status, updated_at, post_destinations(platform, external_url)"
+      )
+      .eq("user_id", userId)
+      .neq("status", "draft")
+      .order("updated_at", { ascending: false })
+      .limit(limit)
+
+    if (before) query = query.lt("updated_at", before)
+
+    const { data, error } = await query
+    if (error) throw new Error(error.message)
+
+    return (data ?? []).map((post) => ({
+      id: post.id as string,
+      title: (post.title as string) || "제목 없는 게시물",
+      contentHtml: post.content_html as string,
+      contentText: post.content_text as string,
+      imageUrls: post.image_urls as string[],
+      status: post.status as PostSummary["status"],
+      updatedAt: post.updated_at as string,
+      links: publishedLinks((post.post_destinations ?? []) as DestinationRow[]),
+    }))
+  }
+)
+
 export const getPostDetail = cache(
   async (userId: string, postId: string): Promise<PostDetail | null> => {
     const supabase = createAdminClient()
