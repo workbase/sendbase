@@ -8,7 +8,7 @@ import type { AppUser, LoginProvider } from "@/lib/types"
 import { hashToken } from "@/lib/auth/crypto"
 
 const SESSION_COOKIE = "sendbase_session"
-const SESSION_DAYS = 30
+const SESSION_DAYS = 3650
 const loginProviderValues = new Set<LoginProvider>(["chzzk", "soop", "cime"])
 
 export async function createSession(userId: string) {

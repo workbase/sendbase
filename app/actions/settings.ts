@@ -1,9 +1,10 @@
 "use server"
 
 import { revalidatePath } from "next/cache"
+import { redirect } from "next/navigation"
 import { z } from "zod"
 
-import { requireUser } from "@/lib/auth/session"
+import { deleteSession, requireUser } from "@/lib/auth/session"
 import { createAdminClient } from "@/lib/supabase/admin"
 
 const boardSettingsSchema = z.object({
@@ -18,6 +19,51 @@ const boardSettingsSchema = z.object({
 })
 
 const apiPlatformSchema = z.enum(["threads", "x", "discord"])
+const deleteAccountSchema = z.literal("계정 삭제", {
+  error: "계정을 삭제하려면 '계정 삭제'를 정확히 입력해 주세요.",
+})
+
+async function listPostMediaPaths(
+  supabase: ReturnType<typeof createAdminClient>,
+  prefix: string
+): Promise<string[]> {
+  const { data, error } = await supabase.storage.from("post-media").list(prefix)
+  if (error) throw new Error(`업로드한 이미지를 확인하지 못했습니다: ${error.message}`)
+
+  const paths: string[] = []
+  for (const item of data) {
+    const path = `${prefix}/${item.name}`
+    if (item.id === null) {
+      paths.push(...(await listPostMediaPaths(supabase, path)))
+    } else {
+      paths.push(path)
+    }
+  }
+  return paths
+}
+
+export async function deleteAccountAction(formData: FormData) {
+  const user = await requireUser()
+  const confirmation = deleteAccountSchema.safeParse(formData.get("confirmation"))
+  if (!confirmation.success) {
+    throw new Error(confirmation.error.issues[0]?.message ?? "입력값을 확인해 주세요.")
+  }
+
+  const supabase = createAdminClient()
+  const mediaPaths = await listPostMediaPaths(supabase, user.id)
+  for (let index = 0; index < mediaPaths.length; index += 1000) {
+    const { error } = await supabase.storage
+      .from("post-media")
+      .remove(mediaPaths.slice(index, index + 1000))
+    if (error) throw new Error(`업로드한 이미지를 삭제하지 못했습니다: ${error.message}`)
+  }
+
+  const { error } = await supabase.from("app_users").delete().eq("id", user.id)
+  if (error) throw new Error(`계정을 삭제하지 못했습니다: ${error.message}`)
+
+  await deleteSession()
+  redirect("/")
+}
 
 export async function disconnectPlatformAction(formData: FormData) {
   const user = await requireUser()

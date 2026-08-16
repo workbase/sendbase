@@ -5,11 +5,9 @@ import { useState, useTransition } from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
 import {
   ArrowLeftIcon,
-  CheckCircle2Icon,
   LinkIcon,
   LoaderCircleIcon,
   LogOutIcon,
-  PuzzleIcon,
   SaveIcon,
   UnlinkIcon,
 } from "lucide-react"
@@ -22,6 +20,8 @@ import {
   saveBoardSettingsAction,
 } from "@/app/actions/settings"
 import { PlatformLogo } from "@/components/logos/platform-logo"
+import { DeleteAccountSection } from "@/components/settings/delete-account-section"
+import { ExtensionInstallationSection } from "@/components/settings/extension-installation-section"
 import { ThemeSelector } from "@/components/settings/theme-selector"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
@@ -108,7 +108,7 @@ export function SettingsForm({
 
   return (
     <div className="mx-auto w-full max-w-3xl space-y-6 px-4 py-8 sm:px-6 sm:py-10">
-      <div className="space-y-4">
+      <div className="space-y-12">
         <Button
           render={<Link href="/dashboard" />}
           nativeButton={false}
@@ -127,7 +127,7 @@ export function SettingsForm({
 
       <section className="space-y-3">
         <h2 className="text-lg font-semibold tracking-tight">로그인 정보</h2>
-        <Card>
+        <Card className="[--card-spacing:--spacing(6)]">
           <CardContent className="flex items-center justify-between gap-4">
             <div className="flex min-w-0 items-center gap-3">
               <Avatar size="lg">
@@ -160,7 +160,7 @@ export function SettingsForm({
 
       <section className="space-y-3">
         <h2 className="text-lg font-semibold tracking-tight">테마</h2>
-        <Card>
+        <Card className="[--card-spacing:--spacing(6)]">
           <CardContent className="flex flex-wrap items-center justify-between gap-4">
             <div>
               <p className="font-medium">화면 테마</p>
@@ -175,14 +175,14 @@ export function SettingsForm({
 
       <section className="space-y-3">
         <h2 className="text-lg font-semibold tracking-tight">API 채널 연결</h2>
-        <Card className="py-0">
+        <Card className="py-0 [--card-spacing:--spacing(6)]">
           <CardContent className="divide-y p-0">
             {apiPlatforms.map((item) => {
               const connection = byPlatform.get(item.platform)
               return (
                 <div
                   key={item.platform}
-                  className="flex flex-wrap items-center gap-4 px-4 py-4"
+                  className="flex flex-wrap items-center gap-4 p-6"
                 >
                   <span
                     className={`flex size-10 items-center justify-center rounded-xl ${
@@ -201,15 +201,12 @@ export function SettingsForm({
                     <div className="flex items-center gap-2">
                       <p className="font-medium">{item.name}</p>
                       {connection?.connected ? (
-                        <Badge variant="secondary">
-                          <CheckCircle2Icon />
-                          연결됨
-                        </Badge>
+                        <Badge>연결됨</Badge>
                       ) : null}
                     </div>
                     <p className="mt-0.5 text-sm text-muted-foreground">
                       {connection?.connected
-                        ? connection.displayName ?? item.description
+                        ? (connection.displayName ?? item.description)
                         : "연결되지 않음"}
                     </p>
                   </div>
@@ -241,11 +238,13 @@ export function SettingsForm({
         </Card>
       </section>
 
+      <ExtensionInstallationSection />
+
       <form className="space-y-3" onSubmit={onSubmit}>
         <h2 className="text-lg font-semibold tracking-tight">
           확장 프로그램 게시판
         </h2>
-        <Card>
+        <Card className="[--card-spacing:--spacing(6)]">
           <CardContent className="space-y-6">
             <section className="space-y-3">
               <div className="flex items-center gap-2">
@@ -320,16 +319,8 @@ export function SettingsForm({
                 </div>
               </div>
             </section>
-
-            <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-muted p-3 text-sm text-muted-foreground">
-              <span className="flex items-center gap-2">
-                <PuzzleIcon className="size-4" />
-                센드베이스 게시글 플러그인이 필요합니다.
-              </span>
-              <span>로그인 및 글쓰기 권한을 확인해 주세요.</span>
-            </div>
           </CardContent>
-          <div className="flex items-center justify-between border-t bg-muted/30 px-4 py-3 sm:px-6">
+          <div className="flex items-center justify-between border-t bg-muted/30 px-6 py-4">
             <p className="text-sm text-emerald-700 dark:text-emerald-400">
               {notice}
             </p>
@@ -344,6 +335,8 @@ export function SettingsForm({
           </div>
         </Card>
       </form>
+
+      <DeleteAccountSection />
     </div>
   )
 }

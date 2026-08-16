@@ -42,6 +42,7 @@ import { usePostHistory } from "@/components/workspace/post-history"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
+import { getStoredExtensionInstallation } from "@/lib/browser/extension-installation"
 import { cn } from "@/lib/utils"
 import { countCharacters, platformLimits } from "@/lib/platforms/limits"
 import { platformToggleTone } from "@/lib/platforms/toggle-tone"
@@ -129,34 +130,6 @@ function ToolbarButton({
       {children}
     </Button>
   )
-}
-
-function extensionCheck() {
-  return new Promise<boolean>((resolve) => {
-    const requestId = crypto.randomUUID()
-    const timeout = window.setTimeout(() => {
-      window.removeEventListener("message", listener)
-      resolve(false)
-    }, 1_500)
-    const listener = (event: MessageEvent<unknown>) => {
-      if (event.origin !== window.location.origin) return
-      const data = event.data as Record<string, unknown> | null
-      if (
-        !data ||
-        data.type !== "SENDBASE_EXTENSION_CHECK_RESULT" ||
-        data.requestId !== requestId
-      )
-        return
-      window.clearTimeout(timeout)
-      window.removeEventListener("message", listener)
-      resolve(data.installed === true)
-    }
-    window.addEventListener("message", listener)
-    window.postMessage(
-      { source: "SENDBASE_SAAS", type: "SENDBASE_EXTENSION_CHECK", requestId },
-      window.location.origin
-    )
-  })
 }
 
 function runExtensionJob(job: ExtensionPublishJob) {
@@ -388,33 +361,31 @@ export function PostEditor({
   const publish = handleSubmit((values) => {
     startPublishing(async () => {
       try {
+        const requiresExtension = values.destinations.some(
+          (platform) => platform === "naver_cafe" || platform === "soop"
+        )
+        if (
+          requiresExtension &&
+          getStoredExtensionInstallation() !== true
+        ) {
+          toast.error(
+            "센드베이스 게시글 플러그인을 설치한 뒤 설정에서 설치 확인을 눌러 주세요."
+          )
+          return
+        }
+
         const result = await publishPostAction(values)
         if (result.extensionJobs.length > 0) {
-          const installed = await extensionCheck()
-          if (!installed) {
-            await Promise.all(
-              result.extensionJobs.map((job) =>
-                recordExtensionResultAction({
-                  postId: result.postId,
-                  platform: job.platform,
-                  ok: false,
-                  message:
-                    "센드베이스 게시글 플러그인이 설치되어 있지 않습니다.",
-                })
-              )
-            )
-          } else {
-            await Promise.all(
-              result.extensionJobs.map(async (job) => {
-                const extensionResult = await runExtensionJob(job)
-                await recordExtensionResultAction({
-                  postId: result.postId,
-                  platform: job.platform,
-                  ...extensionResult,
-                })
+          await Promise.all(
+            result.extensionJobs.map(async (job) => {
+              const extensionResult = await runExtensionJob(job)
+              await recordExtensionResultAction({
+                postId: result.postId,
+                platform: job.platform,
+                ...extensionResult,
               })
-            )
-          }
+            })
+          )
         }
         const post = await getPostDetailAction(result.postId)
         if (post) addPost(post)
