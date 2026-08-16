@@ -1,7 +1,7 @@
-# 워크베이스 게시글 플러그인
+# 센드베이스 게시글 플러그인
 
 네이버 카페와 SOOP 글쓰기 자동화를 위한 Chrome Extension입니다.  
-외부 SaaS(예: Workbase)에서 전달한 데이터로 글쓰기 페이지를 열고 제목/본문(텍스트+스타일+이미지)을 자동 입력합니다.
+외부 SaaS(예: Sendbase)에서 전달한 데이터로 글쓰기 페이지를 열고 제목/본문(텍스트+스타일+이미지)을 자동 입력합니다.
 
 ## 1) 지원 기능
 
@@ -26,7 +26,7 @@
 5. 프로젝트 폴더를 선택합니다.
 
 참고:
-- 확장 이름은 `워크베이스 게시글 플러그인`입니다.
+- 확장 이름은 `센드베이스 게시글 플러그인`입니다.
 - `manifest.json` 변경 후에는 반드시 확장을 새로고침하세요.
 
 ## 3) 수동 실행 (팝업)
@@ -62,7 +62,7 @@ SOOP은 아래 payload를 사용합니다.
   "content_scripts": [
     { "matches": ["https://cafe.naver.com/ca-fe/cafes/*/articles/write*"], "js": ["example.js"] },
     { "matches": ["https://www.sooplive.com/station/*/post/write/*"], "js": ["example.js"] },
-    { "matches": ["https://app.workbase.im/*"], "js": ["content.js"] },
+    { "matches": ["https://sendbase.workbase.im/*"], "js": ["content.js"] },
     { "matches": ["http://localhost:3001/*"], "js": ["content.js"] }
   ]
 }
@@ -79,8 +79,8 @@ SaaS에서 아래 메시지를 보내면, 확장이 설치되어 있고 현재 �
 ```js
 window.postMessage(
   {
-    source: "WORKBASE_SAAS",
-    type: "WORKBASE_EXTENSION_CHECK",
+    source: "SENDBASE_SAAS",
+    type: "SENDBASE_EXTENSION_CHECK",
     requestId: crypto.randomUUID()
   },
   window.location.origin
@@ -93,7 +93,7 @@ window.postMessage(
 window.addEventListener("message", (event) => {
   if (event.origin !== window.location.origin) return;
   const data = event.data;
-  if (!data || data.type !== "WORKBASE_EXTENSION_CHECK_RESULT") return;
+  if (!data || data.type !== "SENDBASE_EXTENSION_CHECK_RESULT") return;
 
   console.log("installed:", data.installed); // true
   console.log("version:", data.version); // 예: "1.0.0"
@@ -107,8 +107,8 @@ window.addEventListener("message", (event) => {
 ```js
 window.postMessage(
   {
-    source: "WORKBASE_SAAS",
-    type: "WORKBASE_NAVER_CAFE_AUTOWRITE",
+    source: "SENDBASE_SAAS",
+    type: "SENDBASE_NAVER_CAFE_AUTOWRITE",
     requestId: crypto.randomUUID(),
     payload: {
       clubId: "28034021",
@@ -128,8 +128,8 @@ SOOP:
 ```js
 window.postMessage(
   {
-    source: "WORKBASE_SAAS",
-    type: "WORKBASE_SOOP_AUTOWRITE",
+    source: "SENDBASE_SAAS",
+    type: "SENDBASE_SOOP_AUTOWRITE",
     requestId: crypto.randomUUID(),
     payload: {
       platform: "soop",
@@ -148,7 +148,7 @@ window.postMessage(
 참고:
 - 요청 직후에는 "접수(accepted)"만 처리됩니다.
 - 실제 자동화 결과는 아래 `4-2`, `4-3` 이벤트로 비동기 전달됩니다.
-- 공통 요청 타입 `WORKBASE_AUTOWRITE`도 사용할 수 있습니다. 이 경우 결과 타입은 `WORKBASE_AUTOWRITE_RESULT`입니다.
+- 공통 요청 타입 `SENDBASE_AUTOWRITE`도 사용할 수 있습니다. 이 경우 결과 타입은 `SENDBASE_AUTOWRITE_RESULT`입니다.
 - `submit=true`면 등록/게시 완료 URL 확인 후 글쓰기 탭이 기본으로 닫힙니다. 닫지 않으려면 `autoClose: false`를 전달하세요.
 - `submit=false`에서도 자동 입력 직후 닫고 싶으면 `autoClose: true`를 전달하세요. 이 경우 수동 등록은 할 수 없습니다.
 
@@ -161,9 +161,9 @@ window.addEventListener("message", (event) => {
   if (event.origin !== window.location.origin) return;
   const data = event.data;
   if (!data || ![
-    "WORKBASE_NAVER_CAFE_AUTOWRITE_RESULT",
-    "WORKBASE_SOOP_AUTOWRITE_RESULT",
-    "WORKBASE_AUTOWRITE_RESULT"
+    "SENDBASE_NAVER_CAFE_AUTOWRITE_RESULT",
+    "SENDBASE_SOOP_AUTOWRITE_RESULT",
+    "SENDBASE_AUTOWRITE_RESULT"
   ].includes(data.type)) return;
 
   console.log("requestId:", data.requestId);
@@ -183,9 +183,9 @@ window.addEventListener("message", (event) => {
   if (event.origin !== window.location.origin) return;
   const data = event.data;
   if (!data || ![
-    "WORKBASE_NAVER_CAFE_AUTOWRITE_COMPLETED_URL",
-    "WORKBASE_SOOP_AUTOWRITE_COMPLETED_URL",
-    "WORKBASE_AUTOWRITE_COMPLETED_URL"
+    "SENDBASE_NAVER_CAFE_AUTOWRITE_COMPLETED_URL",
+    "SENDBASE_SOOP_AUTOWRITE_COMPLETED_URL",
+    "SENDBASE_AUTOWRITE_COMPLETED_URL"
   ].includes(data.type)) return;
 
   console.log("requestId:", data.requestId);
@@ -204,8 +204,8 @@ const requestId = crypto.randomUUID();
 
 window.postMessage(
   {
-    source: "WORKBASE_SAAS",
-    type: "WORKBASE_NAVER_CAFE_AUTOWRITE",
+    source: "SENDBASE_SAAS",
+    type: "SENDBASE_NAVER_CAFE_AUTOWRITE",
     requestId,
     payload: {
       clubId: "28034021",
@@ -221,14 +221,14 @@ window.postMessage(
 window.addEventListener("message", (event) => {
   if (event.origin !== window.location.origin) return;
   const data = event.data;
-  if (!data || data.source !== "WORKBASE_EXTENSION") return;
+  if (!data || data.source !== "SENDBASE_EXTENSION") return;
   if (data.requestId !== requestId) return;
 
-  if (data.type === "WORKBASE_NAVER_CAFE_AUTOWRITE_RESULT") {
+  if (data.type === "SENDBASE_NAVER_CAFE_AUTOWRITE_RESULT") {
     console.log("자동화 결과:", data.result);
   }
 
-  if (data.type === "WORKBASE_NAVER_CAFE_AUTOWRITE_COMPLETED_URL") {
+  if (data.type === "SENDBASE_NAVER_CAFE_AUTOWRITE_COMPLETED_URL") {
     console.log("완료 URL:", data.url);
   }
 });

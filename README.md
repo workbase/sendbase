@@ -17,7 +17,7 @@ supabase db push
 - 로그인: `/api/auth/chzzk/callback`, `/api/auth/soop/callback`, `/api/auth/cime/callback`
 - 게시 연결: `/api/connect/threads/callback`, `/api/connect/x/callback`, `/api/connect/discord/callback`
 
-5. 네이버 카페와 SOOP 게시에는 `guide/extension.md`의 워크베이스 게시글 플러그인이 필요합니다. 운영 도메인을 확장 프로그램의 `content_scripts.matches`에 추가하세요.
+5. 네이버 카페와 SOOP 게시에는 `guide/extension.md`의 센드베이스 게시글 플러그인이 필요합니다. 운영 도메인을 확장 프로그램의 `content_scripts.matches`에 추가하세요.
 
 ## 개발
 

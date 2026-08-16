@@ -95,7 +95,7 @@ function extensionCheck() {
       const data = event.data as Record<string, unknown> | null
       if (
         !data ||
-        data.type !== "WORKBASE_EXTENSION_CHECK_RESULT" ||
+        data.type !== "SENDBASE_EXTENSION_CHECK_RESULT" ||
         data.requestId !== requestId
       )
         return
@@ -105,7 +105,7 @@ function extensionCheck() {
     }
     window.addEventListener("message", listener)
     window.postMessage(
-      { source: "WORKBASE_SAAS", type: "WORKBASE_EXTENSION_CHECK", requestId },
+      { source: "SENDBASE_SAAS", type: "SENDBASE_EXTENSION_CHECK", requestId },
       window.location.origin
     )
   })
@@ -116,12 +116,12 @@ function runExtensionJob(job: ExtensionPublishJob) {
     (resolve) => {
       const resultType =
         job.platform === "naver_cafe"
-          ? "WORKBASE_NAVER_CAFE_AUTOWRITE_RESULT"
-          : "WORKBASE_SOOP_AUTOWRITE_RESULT"
+          ? "SENDBASE_NAVER_CAFE_AUTOWRITE_RESULT"
+          : "SENDBASE_SOOP_AUTOWRITE_RESULT"
       const completedUrlType =
         job.platform === "naver_cafe"
-          ? "WORKBASE_NAVER_CAFE_AUTOWRITE_COMPLETED_URL"
-          : "WORKBASE_SOOP_AUTOWRITE_COMPLETED_URL"
+          ? "SENDBASE_NAVER_CAFE_AUTOWRITE_COMPLETED_URL"
+          : "SENDBASE_SOOP_AUTOWRITE_COMPLETED_URL"
       let successfulResult: { ok: true; message: string } | null = null
       let completedUrl: string | null = null
 
@@ -175,7 +175,7 @@ function runExtensionJob(job: ExtensionPublishJob) {
       window.addEventListener("message", listener)
       window.postMessage(
         {
-          source: "WORKBASE_SAAS",
+          source: "SENDBASE_SAAS",
           type: job.messageType,
           requestId: job.requestId,
           payload: job.payload,
@@ -316,8 +316,7 @@ export function PostEditor({
                   postId: result.postId,
                   platform: job.platform,
                   ok: false,
-                  message:
-                    "워크베이스 게시글 플러그인이 설치되어 있지 않습니다.",
+                  message: "센드베이스 게시글 플러그인이 설치되어 있지 않습니다.",
                 })
               )
             )

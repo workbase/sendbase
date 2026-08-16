@@ -227,7 +227,7 @@ export function SettingsForm({
             <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-muted p-3 text-sm text-muted-foreground">
               <span className="flex items-center gap-2">
                 <PuzzleIcon className="size-4" />
-                워크베이스 게시글 플러그인이 필요합니다.
+                센드베이스 게시글 플러그인이 필요합니다.
               </span>
               <span>로그인 및 글쓰기 권한을 확인해 주세요.</span>
             </div>

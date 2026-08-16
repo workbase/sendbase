@@ -126,8 +126,8 @@ export async function publishPostAction(input: unknown): Promise<PublishResult> 
         platform,
         messageType:
           platform === "naver_cafe"
-            ? "WORKBASE_NAVER_CAFE_AUTOWRITE"
-            : "WORKBASE_SOOP_AUTOWRITE",
+            ? "SENDBASE_NAVER_CAFE_AUTOWRITE"
+            : "SENDBASE_SOOP_AUTOWRITE",
         payload,
       })
       results.push({ platform, ok: true, message: "확장 프로그램으로 전송 중입니다." })

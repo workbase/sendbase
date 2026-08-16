@@ -44,7 +44,7 @@ export type PlatformConnection = {
 export type ExtensionPublishJob = {
   requestId: string
   platform: "naver_cafe" | "soop"
-  messageType: "WORKBASE_NAVER_CAFE_AUTOWRITE" | "WORKBASE_SOOP_AUTOWRITE"
+  messageType: "SENDBASE_NAVER_CAFE_AUTOWRITE" | "SENDBASE_SOOP_AUTOWRITE"
   payload: Record<string, string | boolean>
 }
 
