@@ -392,6 +392,8 @@ export function PostEditor({
     ],
     content: initialContentHtml,
     onCreate: ({ editor: currentEditor }) => {
+      if (mode === "landing") return
+
       requestAnimationFrame(() => {
         currentEditor.commands.focus("end")
       })
