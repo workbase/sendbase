@@ -1,6 +1,7 @@
 "use client"
 
 import {
+  useCallback,
   createContext,
   useContext,
   useEffect,
@@ -8,18 +9,26 @@ import {
   useRef,
   useState,
 } from "react"
-import { LoaderCircleIcon } from "lucide-react"
+import { ArrowDownIcon, LoaderCircleIcon } from "lucide-react"
 
 import { getOlderPostsAction } from "@/app/actions/posts"
 import { POST_HISTORY_PAGE_SIZE } from "@/lib/posts/constants"
 import { PlatformLogo } from "@/components/logos/platform-logo"
 import { Button } from "@/components/ui/button"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
 import { platformLimits } from "@/lib/platforms/limits"
 import type { PostDetail } from "@/lib/types"
 
 const cardTiltClasses = ["-rotate-1", "rotate-0", "rotate-1"]
 const PostHistoryContext = createContext<{
   addPost: (post: PostDetail) => void
+  loadPost: (post: PostDetail) => void
+  setPostLoader: (loader: ((post: PostDetail) => void) | null) => void
 } | null>(null)
 const scrollAnimationFrames = new WeakMap<HTMLDivElement, number>()
 
@@ -85,7 +94,13 @@ function getCardTiltClass(postId: string) {
   return cardTiltClasses[Math.abs(hash) % cardTiltClasses.length]
 }
 
-function PostMessage({ post }: { post: PostDetail }) {
+function PostMessage({
+  post,
+  onLoad,
+}: {
+  post: PostDetail
+  onLoad: (post: PostDetail) => void
+}) {
   return (
     <article
       className={`rounded-2xl bg-card p-5 sm:p-6 ${getCardTiltClass(post.id)}`}
@@ -103,28 +118,59 @@ function PostMessage({ post }: { post: PostDetail }) {
         className="text-sm leading-7 break-words [&_a]:underline [&_a]:underline-offset-4 [&_img]:my-4 [&_img]:max-h-96 [&_img]:max-w-full [&_img]:rounded-xl [&_img]:object-contain [&_p]:my-2"
         dangerouslySetInnerHTML={{ __html: post.contentHtml }}
       />
-      {post.links.length > 0 ? (
+      <TooltipProvider delay={0}>
         <div className="mt-4 flex flex-wrap gap-2">
-          {post.links.map((link) => (
-            <Button
-              key={link.platform}
+          <Tooltip>
+            <TooltipTrigger
               render={
-                <a href={link.url} target="_blank" rel="noopener noreferrer" />
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="icon"
+                  aria-label="공지 재활용"
+                  className="rounded-full bg-muted hover:bg-muted"
+                  onClick={() => onLoad(post)}
+                >
+                  <ArrowDownIcon />
+                </Button>
               }
-              nativeButton={false}
-              size="icon"
-              className="rounded-full bg-muted hover:bg-muted"
-              aria-label={platformLimits[link.platform].label}
-              title={platformLimits[link.platform].label}
-            >
-              <PlatformLogo
-                platform={link.platform}
-                className="size-4"
-              />
-            </Button>
-          ))}
+            />
+            <TooltipContent>공지 재활용</TooltipContent>
+          </Tooltip>
+          {post.links.map((link) => {
+            const platformLabel = platformLimits[link.platform].label
+            const tooltipLabel = `${platformLabel} 원문 보기`
+
+            return (
+              <Tooltip key={link.platform}>
+                <TooltipTrigger
+                  render={
+                    <Button
+                      render={
+                        <a
+                          href={link.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        />
+                      }
+                      nativeButton={false}
+                      size="icon"
+                      className="rounded-full bg-muted hover:bg-muted"
+                      aria-label={tooltipLabel}
+                    >
+                      <PlatformLogo
+                        platform={link.platform}
+                        className="size-4"
+                      />
+                    </Button>
+                  }
+                />
+                <TooltipContent>{tooltipLabel}</TooltipContent>
+              </Tooltip>
+            )
+          })}
         </div>
-      ) : null}
+      </TooltipProvider>
     </article>
   )
 }
@@ -145,6 +191,7 @@ export function PostHistory({
   const hasScrolledUpRef = useRef(false)
   const isLoadingRef = useRef(false)
   const lastScrollTopRef = useRef(0)
+  const postLoaderRef = useRef<((post: PostDetail) => void) | null>(null)
   const [posts, setPosts] = useState(() => [...initialPosts].reverse())
   const [hasMore, setHasMore] = useState(
     initialPosts.length === POST_HISTORY_PAGE_SIZE
@@ -152,13 +199,22 @@ export function PostHistory({
   const [isLoading, setIsLoading] = useState(false)
   const [isInitialPositioned, setIsInitialPositioned] = useState(false)
 
-  const addPost = (post: PostDetail) => {
+  const addPost = useCallback((post: PostDetail) => {
     shouldStickToBottomRef.current = true
     setPosts((current) => [
       ...current.filter((item) => item.id !== post.id),
       post,
     ])
-  }
+  }, [])
+  const loadPost = useCallback((post: PostDetail) => {
+    postLoaderRef.current?.(post)
+  }, [])
+  const setPostLoader = useCallback(
+    (loader: ((post: PostDetail) => void) | null) => {
+      postLoaderRef.current = loader
+    },
+    []
+  )
 
   useLayoutEffect(() => {
     const viewport = viewportRef.current
@@ -248,7 +304,7 @@ export function PostHistory({
   }, [hasMore, isInitialPositioned, posts])
 
   return (
-    <PostHistoryContext value={{ addPost }}>
+    <PostHistoryContext value={{ addPost, loadPost, setPostLoader }}>
       <div
         ref={viewportRef}
         className={`h-svh overflow-y-auto overscroll-contain ${
@@ -270,7 +326,7 @@ export function PostHistory({
       >
         <div
           ref={contentRef}
-          className="mx-auto flex w-full max-w-3xl flex-col gap-5 px-4 pt-20 pb-0 sm:px-6"
+          className="mx-auto flex min-h-svh w-full max-w-3xl flex-col gap-5 px-4 pt-20 pb-0 sm:px-6"
         >
           <div
             ref={loadTriggerRef}
@@ -281,14 +337,14 @@ export function PostHistory({
             ) : null}
           </div>
           {posts.map((post) => (
-            <PostMessage key={post.id} post={post} />
+            <PostMessage key={post.id} post={post} onLoad={loadPost} />
           ))}
           {posts.length === 0 ? (
             <p className="py-12 text-center text-sm text-muted-foreground">
               아직 게시물이 없습니다. 첫 공지를 작성해 보세요.
             </p>
           ) : null}
-          <div className="pt-12">{children}</div>
+          <div className="mt-auto pt-12">{children}</div>
         </div>
       </div>
     </PostHistoryContext>

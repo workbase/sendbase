@@ -237,11 +237,21 @@ const extensionResultSchema = z.object({
   ok: z.boolean(),
   message: z.string().max(500),
   url: z.string().url().optional(),
+  response: z.record(z.string(), z.unknown()).optional(),
+  completedUrlResponse: z.record(z.string(), z.unknown()).optional(),
 })
 
 export async function recordExtensionResultAction(input: unknown) {
   const user = await requireUser()
   const parsed = extensionResultSchema.parse(input)
+  console.info("[publish][extension-response]", {
+    postId: parsed.postId,
+    platform: parsed.platform,
+    ok: parsed.ok,
+    message: parsed.message,
+    response: parsed.response,
+    completedUrlResponse: parsed.completedUrlResponse,
+  })
   const supabase = createAdminClient()
   const { data: post } = await supabase
     .from("posts")

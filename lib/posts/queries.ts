@@ -1,6 +1,7 @@
 import { cache } from "react"
 
 import { createAdminClient } from "@/lib/supabase/admin"
+import { publishPlatforms } from "@/lib/types"
 import type {
   PlatformConnection,
   PostDetail,
@@ -17,6 +18,7 @@ const recentPostLinkOrder: PublishPlatform[] = [
   "soop",
 ]
 const recentPostLinkPlatforms = new Set(recentPostLinkOrder)
+const publishPlatformSet = new Set<PublishPlatform>(publishPlatforms)
 
 type DestinationRow = {
   platform: string
@@ -36,6 +38,13 @@ function publishedLinks(destinations: DestinationRow[]): PublishedPostLink[] {
         recentPostLinkOrder.indexOf(left.platform) -
         recentPostLinkOrder.indexOf(right.platform)
     )
+}
+
+function destinationPlatforms(destinations: DestinationRow[]): PublishPlatform[] {
+  return destinations.flatMap((destination) => {
+    const platform = destination.platform as PublishPlatform
+    return publishPlatformSet.has(platform) ? [platform] : []
+  })
 }
 
 export const getPosts = cache(async (userId: string): Promise<PostSummary[]> => {
@@ -79,16 +88,22 @@ export const getPostHistory = cache(
     const { data, error } = await query
     if (error) throw new Error(error.message)
 
-    return (data ?? []).map((post) => ({
-      id: post.id as string,
-      title: (post.title as string) || "제목 없는 게시물",
-      contentHtml: post.content_html as string,
-      contentText: post.content_text as string,
-      imageUrls: post.image_urls as string[],
-      status: post.status as PostSummary["status"],
-      updatedAt: post.updated_at as string,
-      links: publishedLinks((post.post_destinations ?? []) as DestinationRow[]),
-    }))
+    return (data ?? []).map((post) => {
+      const destinations = (post.post_destinations ?? []) as DestinationRow[]
+
+      return {
+        id: post.id as string,
+        title: (post.title as string) || "제목 없는 게시물",
+        editorTitle: post.title as string,
+        contentHtml: post.content_html as string,
+        contentText: post.content_text as string,
+        imageUrls: post.image_urls as string[],
+        status: post.status as PostSummary["status"],
+        updatedAt: post.updated_at as string,
+        links: publishedLinks(destinations),
+        destinations: destinationPlatforms(destinations),
+      }
+    })
   }
 )
 
@@ -114,13 +129,17 @@ export const getPostDetail = cache(
     const post = postResult.data
     return {
       id: post.id as string,
-      title: post.title as string,
+      title: (post.title as string) || "제목 없는 게시물",
+      editorTitle: post.title as string,
       contentHtml: post.content_html as string,
       contentText: post.content_text as string,
       imageUrls: post.image_urls as string[],
       status: post.status as PostSummary["status"],
       updatedAt: post.updated_at as string,
       links: publishedLinks(
+        (destinationsResult.data ?? []) as DestinationRow[]
+      ),
+      destinations: destinationPlatforms(
         (destinationsResult.data ?? []) as DestinationRow[]
       ),
     }

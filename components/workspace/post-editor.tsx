@@ -1,6 +1,7 @@
 "use client"
 
 import {
+  useCallback,
   useEffect,
   useLayoutEffect,
   useMemo,
@@ -67,6 +68,7 @@ import {
 import type {
   ExtensionPublishJob,
   PlatformConnection,
+  PostDetail,
   PublishPlatform,
 } from "@/lib/types"
 import { publishPlatforms } from "@/lib/types"
@@ -74,13 +76,13 @@ import { publishPlatforms } from "@/lib/types"
 const selectedPlatformsStorageKey = "sendbase:selected-post-platforms"
 const landingEditorTitle = "내 방송을 놓치는 팬이 없도록"
 const landingEditorContentHtml =
-  "<p>내 방송 공지는 정말 시청자를 모으고 있나요?</p><p>열성 팬들만 보는 곳에 쓰고 있진 않나요?</p><p> </p><p>알림을 안 켜둔 시청자도, 팬카페에 없는 팬도 나를 놓치지 않게.</p><p>방송에 들어오기만을 기다리는 대신, 팬들의 피드에 자연스럽게 스며드세요.</p>"
+  "<p>내 방송 공지는 정말 시청자를 모으고 있나요?</p><p>열성 팬들만 보는 곳에 쓰고 있진 않나요?</p><p> </p><p>알림을 안 켜둔 시청자도, 팬카페에 없는 팬도 나를 놓치지 않게.</p><p>방송에 들어오기만을 기다리는 대신, 팬들의 피드에 자연스럽게 스며드세요.</p><p>완전 무료. 개인정보는 애초에 받지 않아요.</p>"
 const landingEditorPlainText =
   "이번 주 금요일 저녁 8시에 새로운 콘텐츠와 함께 찾아갈게요.\n소소한 선물도 준비했으니, 놓치지 말고 함께해요!"
 const landingDefaultDestinations: PublishPlatform[] = [
   "threads",
+  "x",
   "discord",
-  "naver_cafe",
 ]
 const loginProviders = [
   { id: "chzzk", label: "치지직으로 계속하기" },
@@ -161,7 +163,13 @@ function ToolbarButton({
 }
 
 function runExtensionJob(job: ExtensionPublishJob) {
-  return new Promise<{ ok: boolean; message: string; url?: string }>(
+  return new Promise<{
+    ok: boolean
+    message: string
+    url?: string
+    response?: Record<string, unknown>
+    completedUrlResponse?: Record<string, unknown>
+  }>(
     (resolve) => {
       const resultType =
         job.platform === "naver_cafe"
@@ -173,6 +181,8 @@ function runExtensionJob(job: ExtensionPublishJob) {
           : "SENDBASE_SOOP_AUTOWRITE_COMPLETED_URL"
       let successfulResult: { ok: true; message: string } | null = null
       let completedUrl: string | null = null
+      let response: Record<string, unknown> | undefined
+      let completedUrlResponse: Record<string, unknown> | undefined
 
       const cleanup = () => {
         window.clearTimeout(timeout)
@@ -182,17 +192,24 @@ function runExtensionJob(job: ExtensionPublishJob) {
       const finishIfComplete = () => {
         if (!successfulResult || !completedUrl) return
         cleanup()
-        resolve({ ...successfulResult, url: completedUrl })
+        resolve({
+          ...successfulResult,
+          url: completedUrl,
+          response,
+          completedUrlResponse,
+        })
       }
 
       const timeout = window.setTimeout(() => {
         cleanup()
-        resolve(
-          successfulResult ?? {
+        resolve({
+          ...(successfulResult ?? {
             ok: false,
             message: "확장 프로그램 응답 시간이 초과되었습니다.",
-          }
-        )
+          }),
+          response,
+          completedUrlResponse,
+        })
       }, 120_000)
       const listener = (event: MessageEvent<unknown>) => {
         if (event.origin !== window.location.origin) return
@@ -201,12 +218,14 @@ function runExtensionJob(job: ExtensionPublishJob) {
 
         if (data.type === completedUrlType && typeof data.url === "string") {
           completedUrl = data.url
+          completedUrlResponse = data
           finishIfComplete()
           return
         }
 
         if (data.type !== resultType) return
         const result = data.result as Record<string, unknown> | undefined
+        response = data
         const message =
           typeof result?.message === "string"
             ? result.message
@@ -215,7 +234,7 @@ function runExtensionJob(job: ExtensionPublishJob) {
               : "자동 작성 결과를 확인해 주세요."
         if (result?.ok !== true) {
           cleanup()
-          resolve({ ok: false, message })
+          resolve({ ok: false, message, response })
           return
         }
         successfulResult = { ok: true, message }
@@ -278,6 +297,7 @@ export function PostEditor({
   )
   const [isPublishing, startPublishing] = useTransition()
   const imageInputRef = useRef<HTMLInputElement>(null)
+  const editorContainerRef = useRef<HTMLDivElement>(null)
   const previewImageUrlRef = useRef<string | null>(null)
 
   useEffect(() => {
@@ -304,8 +324,7 @@ export function PostEditor({
     },
   })
   const selectedDestinations = useWatch({ control, name: "destinations" })
-  const shouldShowTitle =
-    mode === "landing" || requiresPostTitle(selectedDestinations)
+  const shouldShowTitle = requiresPostTitle(selectedDestinations)
   const strictestCharacterLimit = useMemo(() => {
     let strictest: {
       platform: PublishPlatform
@@ -372,6 +391,11 @@ export function PostEditor({
       }),
     ],
     content: initialContentHtml,
+    onCreate: ({ editor: currentEditor }) => {
+      requestAnimationFrame(() => {
+        currentEditor.commands.focus("end")
+      })
+    },
     editorProps: {
       attributes: {
         class:
@@ -384,6 +408,35 @@ export function PostEditor({
       setPlainText(currentEditor.getText({ blockSeparator: "\n" }))
     },
   })
+
+  const loadPostIntoEditor = useCallback(
+    (post: PostDetail) => {
+      reset({
+        title: post.editorTitle,
+        contentHtml: post.contentHtml,
+        destinations: post.destinations,
+      })
+      editor?.commands.setContent(post.contentHtml, { emitUpdate: false })
+      setPlainText(post.contentText)
+      requestAnimationFrame(() => {
+        editor?.commands.focus("end")
+        editorContainerRef.current?.scrollIntoView({
+          behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches
+            ? "auto"
+            : "smooth",
+          block: "end",
+        })
+      })
+    },
+    [editor, reset]
+  )
+
+  useEffect(() => {
+    if (!postHistory) return
+
+    postHistory.setPostLoader(loadPostIntoEditor)
+    return () => postHistory.setPostLoader(null)
+  }, [loadPostIntoEditor, postHistory])
 
   function applyLink() {
     if (!editor) return
@@ -486,7 +539,7 @@ export function PostEditor({
   })
 
   return (
-    <div className="mx-auto w-full max-w-3xl">
+    <div ref={editorContainerRef} className="mx-auto w-full max-w-3xl">
       <Controller
         control={control}
         name="destinations"
@@ -683,7 +736,7 @@ export function PostEditor({
               <PopoverTrigger
                 render={<Button className="h-10 shadow-sm" />}
               >
-                평생 무료로 시작하기
+                무료로 시작하기
               </PopoverTrigger>
               <PopoverContent align="end" side="top" sideOffset={10}>
                 <PopoverHeader className="px-1 pt-1 pb-0.5">

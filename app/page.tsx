@@ -1,14 +1,12 @@
 import { redirect } from "next/navigation"
 
 import { PlatformLogo } from "@/components/logos/platform-logo"
+import { BrowserSupportDialog } from "@/components/landing/browser-support-dialog"
 import { SendbaseLogo } from "@/components/logos/sendbase-logo"
 import { PostEditor } from "@/components/workspace/post-editor"
 import { getCurrentUser } from "@/lib/auth/session"
 import { platformLimits } from "@/lib/platforms/limits"
-import type {
-  PlatformConnection,
-  PublishPlatform,
-} from "@/lib/types"
+import type { PlatformConnection, PublishPlatform } from "@/lib/types"
 import { publishPlatforms } from "@/lib/types"
 
 const landingConnections: PlatformConnection[] = publishPlatforms.map(
@@ -77,6 +75,7 @@ export default async function LandingPage({
 
   return (
     <main>
+      <BrowserSupportDialog />
       <div className="fixed top-5 left-5 z-20 text-foreground">
         <SendbaseLogo className="h-auto w-32" />
       </div>
@@ -122,9 +121,8 @@ export default async function LandingPage({
             소식을 쓰고, 채널을 고르고, 한 번에 전하세요.
           </h2>
           <p className="mt-5 max-w-xl text-base leading-7 text-muted-foreground">
-            플랫폼마다 반복했던 작성과 게시를 센드베이스 하나로
-            줄입니다. 최대 글자 수부터 이전 게시 기록까지 한 화면에서
-            확인하세요.
+            플랫폼마다 반복했던 작성과 게시를 센드베이스 하나로 줄입니다. 최대
+            글자 수부터 이전 게시 기록까지 한 화면에서 확인하세요.
           </p>
         </div>
       </section>
@@ -154,10 +152,7 @@ function MockPost({
             aria-label={platformLimits[platform].label}
             title={platformLimits[platform].label}
           >
-            <PlatformLogo
-              platform={platform}
-              className="size-4"
-            />
+            <PlatformLogo platform={platform} className="size-4" />
           </span>
         ))}
       </div>

@@ -27,8 +27,30 @@ function stringValue(record: Record<string, unknown>, key: string) {
   return typeof value === "string" ? value : null
 }
 
-async function responseJson(response: Response) {
+function redactSensitiveValues(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(redactSensitiveValues)
+  if (typeof value !== "object" || value === null) return value
+
+  return Object.fromEntries(
+    Object.entries(value as Record<string, unknown>).map(([key, entry]) => [
+      key,
+      /token|secret|password|authorization/i.test(key)
+        ? "[REDACTED]"
+        : redactSensitiveValues(entry),
+    ])
+  )
+}
+
+async function responseJson(response: Response, platform: PublishPlatform, operation: string) {
   const json: unknown = await response.json().catch(() => ({}))
+  console.info("[publish][api-response]", {
+    platform,
+    operation,
+    status: response.status,
+    statusText: response.statusText,
+    ok: response.ok,
+    response: redactSensitiveValues(json),
+  })
   if (!response.ok) {
     const record = asRecord(json)
     const nested = asRecord(record.error)
@@ -73,7 +95,11 @@ async function getConnection(userId: string, platform: PublishPlatform) {
     const url = new URL("https://graph.threads.net/refresh_access_token")
     url.searchParams.set("grant_type", "th_refresh_token")
     url.searchParams.set("access_token", connection.accessToken)
-    const result = await responseJson(await fetch(url, { cache: "no-store" }))
+    const result = await responseJson(
+      await fetch(url, { cache: "no-store" }),
+      platform,
+      "refresh-access-token"
+    )
     const accessToken = stringValue(result, "access_token")
     const expiresIn = result.expires_in
     if (!accessToken) throw new Error("Threads 토큰을 갱신하지 못했습니다.")
@@ -100,7 +126,7 @@ async function getConnection(userId: string, platform: PublishPlatform) {
       }),
       cache: "no-store",
     })
-    const result = await responseJson(response)
+    const result = await responseJson(response, platform, "refresh-access-token")
     const accessToken = stringValue(result, "access_token")
     if (!accessToken) throw new Error("X 토큰을 갱신하지 못했습니다.")
     connection.accessToken = accessToken
@@ -140,7 +166,7 @@ async function createThreadsContainer(
     body,
     cache: "no-store",
   })
-  const result = await responseJson(response)
+  const result = await responseJson(response, "threads", "create-container")
   const id = stringValue(result, "id")
   if (!id) throw new Error("Threads 미디어 컨테이너 ID가 없습니다.")
   return id
@@ -193,7 +219,7 @@ async function publishThreads(input: PublishInput) {
       cache: "no-store",
     }
   )
-  const result = await responseJson(response)
+  const result = await responseJson(response, "threads", "publish")
   const id = stringValue(result, "id")
   if (!id) throw new Error("Threads 게시물 ID가 없습니다.")
   return { id, url: `https://www.threads.net/post/${id}` }
@@ -217,7 +243,7 @@ async function uploadXImage(accessToken: string, imageUrl: string) {
     }),
     cache: "no-store",
   })
-  const result = await responseJson(response)
+  const result = await responseJson(response, "x", "upload-media")
   const data = asRecord(result.data)
   const id = stringValue(data, "id") ?? stringValue(data, "media_id_string")
   if (!id) throw new Error("X 미디어 ID가 없습니다.")
@@ -242,7 +268,7 @@ async function publishX(input: PublishInput) {
     }),
     cache: "no-store",
   })
-  const result = await responseJson(response)
+  const result = await responseJson(response, "x", "publish")
   const id = stringValue(asRecord(result.data), "id")
   if (!id) throw new Error("X 게시물 ID가 없습니다.")
   return { id, url: `https://x.com/i/web/status/${id}` }
@@ -287,7 +313,7 @@ async function publishDiscord(input: PublishInput) {
     })
   }
 
-  const result = await responseJson(response)
+  const result = await responseJson(response, "discord", "publish")
   const id = stringValue(result, "id")
   if (!id) throw new Error("Discord 메시지 ID가 없습니다.")
   const channelId = stringValue(result, "channel_id")

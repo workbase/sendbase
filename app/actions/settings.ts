@@ -5,18 +5,13 @@ import { redirect } from "next/navigation"
 import { z } from "zod"
 
 import { deleteSession, requireUser } from "@/lib/auth/session"
+import {
+  getNaverCafeId,
+  getSoopBoardSettings,
+  naverCafeSettingsInputSchema,
+  soopSettingsInputSchema,
+} from "@/lib/platforms/board-links"
 import { createAdminClient } from "@/lib/supabase/admin"
-
-const boardSettingsSchema = z.object({
-  naverCafe: z.object({
-    clubId: z.string().trim().min(1, "카페 ID를 입력해 주세요."),
-    menuname: z.string().trim().min(1, "게시판 이름을 입력해 주세요."),
-  }),
-  soop: z.object({
-    userid: z.string().trim().min(1, "SOOP 사용자 ID를 입력해 주세요."),
-    boardId: z.string().trim().min(1, "게시판 ID를 입력해 주세요."),
-  }),
-})
 
 const apiPlatformSchema = z.enum(["threads", "x", "discord"])
 const deleteAccountSchema = z.literal("계정 삭제", {
@@ -83,33 +78,50 @@ export async function disconnectPlatformAction(formData: FormData) {
   revalidatePath("/dashboard")
 }
 
-export async function saveBoardSettingsAction(input: unknown) {
+export async function saveNaverCafeSettingsAction(input: unknown) {
   const user = await requireUser()
-  const parsed = boardSettingsSchema.safeParse(input)
+  const parsed = naverCafeSettingsInputSchema.safeParse(input)
   if (!parsed.success) throw new Error(parsed.error.issues[0]?.message ?? "입력값을 확인해 주세요.")
+  const clubId = getNaverCafeId(parsed.data.cafeUrl)
+  if (!clubId) throw new Error("네이버 카페 링크를 확인해 주세요.")
+
   const supabase = createAdminClient()
-  const now = new Date().toISOString()
   const { error } = await supabase.from("platform_connections").upsert(
-    [
-      {
-        user_id: user.id,
-        platform: "naver_cafe",
-        display_name: parsed.data.naverCafe.menuname,
-        settings: parsed.data.naverCafe,
-        updated_at: now,
-      },
-      {
-        user_id: user.id,
-        platform: "soop",
-        external_account_id: parsed.data.soop.userid,
-        display_name: parsed.data.soop.userid,
-        settings: parsed.data.soop,
-        updated_at: now,
-      },
-    ],
+    {
+      user_id: user.id,
+      platform: "naver_cafe",
+      display_name: parsed.data.menuname,
+      settings: { ...parsed.data, clubId },
+      updated_at: new Date().toISOString(),
+    },
     { onConflict: "user_id,platform" }
   )
-  if (error) throw new Error(`설정을 저장하지 못했습니다: ${error.message}`)
+  if (error) throw new Error(`네이버 카페 설정을 저장하지 못했습니다: ${error.message}`)
+  revalidatePath("/settings")
+  revalidatePath("/dashboard")
+  return { ok: true }
+}
+
+export async function saveSoopSettingsAction(input: unknown) {
+  const user = await requireUser()
+  const parsed = soopSettingsInputSchema.safeParse(input)
+  if (!parsed.success) throw new Error(parsed.error.issues[0]?.message ?? "입력값을 확인해 주세요.")
+  const boardSettings = getSoopBoardSettings(parsed.data.boardUrl)
+  if (!boardSettings) throw new Error("SOOP 게시판 링크를 확인해 주세요.")
+
+  const supabase = createAdminClient()
+  const { error } = await supabase.from("platform_connections").upsert(
+    {
+      user_id: user.id,
+      platform: "soop",
+      external_account_id: boardSettings.userid,
+      display_name: boardSettings.userid,
+      settings: { ...parsed.data, ...boardSettings },
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: "user_id,platform" }
+  )
+  if (error) throw new Error(`SOOP 게시판 설정을 저장하지 못했습니다: ${error.message}`)
   revalidatePath("/settings")
   revalidatePath("/dashboard")
   return { ok: true }

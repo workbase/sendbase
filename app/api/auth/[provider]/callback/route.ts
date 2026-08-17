@@ -71,9 +71,14 @@ async function exchangeCode(provider: LoginProvider, code: string, state: string
     throw new Error(firstString(asRecord(json), ["message", "error_description"]) ?? "토큰 발급에 실패했습니다.")
   }
   const root = asRecord(json)
-  const source = provider === "cime" ? asRecord(root.content) : root
+  const source = provider === "soop" ? root : asRecord(root.content)
   const accessToken = firstString(source, ["accessToken", "access_token"])
-  if (!accessToken) throw new Error("인증 응답에 액세스 토큰이 없습니다.")
+  if (!accessToken) {
+    throw new Error(
+      firstString(root, ["message", "error_description"]) ??
+        "인증 응답에 액세스 토큰이 없습니다."
+    )
+  }
 
   const expires = source.expiresIn ?? source.expires_in
   return {

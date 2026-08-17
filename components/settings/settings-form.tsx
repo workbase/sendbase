@@ -3,21 +3,15 @@
 import Link from "next/link"
 import { useState, useTransition } from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
-import {
-  ArrowLeftIcon,
-  LinkIcon,
-  LoaderCircleIcon,
-  LogOutIcon,
-  SaveIcon,
-  UnlinkIcon,
-} from "lucide-react"
+import { ArrowLeftIcon, LinkIcon, LogOutIcon, UnlinkIcon } from "lucide-react"
 import { useForm } from "react-hook-form"
 import { z } from "zod"
 
 import { logoutAction } from "@/app/actions/auth"
 import {
   disconnectPlatformAction,
-  saveBoardSettingsAction,
+  saveNaverCafeSettingsAction,
+  saveSoopSettingsAction,
 } from "@/app/actions/settings"
 import { PlatformLogo } from "@/components/logos/platform-logo"
 import { DeleteAccountSection } from "@/components/settings/delete-account-section"
@@ -29,21 +23,24 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
+import {
+  getNaverCafeUrlFromId,
+  getSoopBoardUrlFromIds,
+  naverCafeSettingsInputSchema,
+  soopSettingsInputSchema,
+} from "@/lib/platforms/board-links"
 import { platformToggleTone } from "@/lib/platforms/toggle-tone"
 import type { AppUser, LoginProvider, PlatformConnection } from "@/lib/types"
 
-const schema = z.object({
-  naverCafe: z.object({
-    clubId: z.string().trim().min(1, "카페 ID를 입력해 주세요."),
-    menuname: z.string().trim().min(1, "게시판 이름을 입력해 주세요."),
-  }),
-  soop: z.object({
-    userid: z.string().trim().min(1, "SOOP 사용자 ID를 입력해 주세요."),
-    boardId: z.string().trim().min(1, "게시판 ID를 입력해 주세요."),
-  }),
-})
-
-type FormValues = z.infer<typeof schema>
+type NaverCafeSettingsFormValues = z.infer<typeof naverCafeSettingsInputSchema>
+type SoopSettingsFormValues = z.infer<typeof soopSettingsInputSchema>
+type BoardField = "cafeUrl" | "menuname" | "boardUrl"
 
 const apiPlatforms = [
   {
@@ -72,35 +69,74 @@ export function SettingsForm({
   connections: PlatformConnection[]
   user: AppUser
 }) {
-  const [isPending, startTransition] = useTransition()
-  const [notice, setNotice] = useState<string | null>(null)
   const byPlatform = new Map(connections.map((item) => [item.platform, item]))
   const naver = byPlatform.get("naver_cafe")?.settings
   const soop = byPlatform.get("soop")?.settings
-  const {
-    register,
-    handleSubmit,
-    formState: { errors },
-  } = useForm<FormValues>({
-    resolver: zodResolver(schema),
+  const [isNaverCafePending, startNaverCafeTransition] = useTransition()
+  const [isSoopPending, startSoopTransition] = useTransition()
+  const [naverCafeNotice, setNaverCafeNotice] = useState<string | null>(null)
+  const [soopNotice, setSoopNotice] = useState<string | null>(null)
+  const [focusedBoardField, setFocusedBoardField] = useState<BoardField | null>(
+    null
+  )
+  const [hasSavedNaverCafeSettings, setHasSavedNaverCafeSettings] = useState(
+    Boolean(naver?.clubId && naver?.menuname)
+  )
+  const [hasSavedSoopSettings, setHasSavedSoopSettings] = useState(
+    Boolean(soop?.userid && soop?.boardId)
+  )
+  const naverCafeForm = useForm<NaverCafeSettingsFormValues>({
+    resolver: zodResolver(naverCafeSettingsInputSchema),
     defaultValues: {
-      naverCafe: {
-        clubId: naver?.clubId ?? "",
-        menuname: naver?.menuname ?? "",
-      },
-      soop: { userid: soop?.userid ?? "", boardId: soop?.boardId ?? "" },
+      cafeUrl:
+        naver?.cafeUrl ??
+        (naver?.clubId ? getNaverCafeUrlFromId(naver.clubId) : ""),
+      menuname: naver?.menuname ?? "",
     },
   })
+  const soopForm = useForm<SoopSettingsFormValues>({
+    resolver: zodResolver(soopSettingsInputSchema),
+    defaultValues: {
+      boardUrl:
+        soop?.boardUrl ??
+        (soop?.userid && soop.boardId
+          ? getSoopBoardUrlFromIds(soop.userid, soop.boardId)
+          : ""),
+    },
+  })
+  const cafeUrlField = naverCafeForm.register("cafeUrl")
+  const menunameField = naverCafeForm.register("menuname")
+  const boardUrlField = soopForm.register("boardUrl")
 
-  const onSubmit = handleSubmit((values) => {
-    setNotice(null)
-    startTransition(async () => {
+  const onNaverCafeSubmit = naverCafeForm.handleSubmit((values) => {
+    setNaverCafeNotice(null)
+    startNaverCafeTransition(async () => {
       try {
-        await saveBoardSettingsAction(values)
-        setNotice("게시판 설정을 저장했습니다.")
+        await saveNaverCafeSettingsAction(values)
+        setHasSavedNaverCafeSettings(true)
+        setNaverCafeNotice("네이버 카페 설정을 저장했습니다.")
       } catch (error) {
-        setNotice(
-          error instanceof Error ? error.message : "설정을 저장하지 못했습니다."
+        setNaverCafeNotice(
+          error instanceof Error
+            ? error.message
+            : "네이버 카페 설정을 저장하지 못했습니다."
+        )
+      }
+    })
+  })
+
+  const onSoopSubmit = soopForm.handleSubmit((values) => {
+    setSoopNotice(null)
+    startSoopTransition(async () => {
+      try {
+        await saveSoopSettingsAction(values)
+        setHasSavedSoopSettings(true)
+        setSoopNotice("SOOP 게시판 설정을 저장했습니다.")
+      } catch (error) {
+        setSoopNotice(
+          error instanceof Error
+            ? error.message
+            : "SOOP 게시판 설정을 저장하지 못했습니다."
         )
       }
     })
@@ -200,9 +236,7 @@ export function SettingsForm({
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
                       <p className="font-medium">{item.name}</p>
-                      {connection?.connected ? (
-                        <Badge>연결됨</Badge>
-                      ) : null}
+                      {connection?.connected ? <Badge>연결됨</Badge> : null}
                     </div>
                     <p className="mt-0.5 text-sm text-muted-foreground">
                       {connection?.connected
@@ -240,101 +274,166 @@ export function SettingsForm({
 
       <ExtensionInstallationSection />
 
-      <form className="space-y-3" onSubmit={onSubmit}>
+      <section className="space-y-3">
         <h2 className="text-lg font-semibold tracking-tight">
           확장 프로그램 게시판
         </h2>
-        <Card className="[--card-spacing:--spacing(6)]">
-          <CardContent className="space-y-6">
-            <section className="space-y-3">
-              <div className="flex items-center gap-2">
-                <span className="flex size-7 items-center justify-center rounded-lg bg-muted">
-                  <PlatformLogo platform="naver_cafe" className="size-4" />
-                </span>
-                <h2 className="font-medium">네이버 카페</h2>
-              </div>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-1.5">
-                  <Label htmlFor="clubId">카페 ID</Label>
-                  <Input
-                    id="clubId"
-                    placeholder="28034021"
-                    {...register("naverCafe.clubId")}
-                  />
-                  {errors.naverCafe?.clubId ? (
-                    <p className="text-xs text-destructive">
-                      {errors.naverCafe.clubId.message}
-                    </p>
-                  ) : null}
+        <TooltipProvider>
+          <Card className="gap-0 py-0 [--card-spacing:--spacing(6)]">
+            <form onSubmit={onNaverCafeSubmit}>
+              <CardContent className="space-y-3 pt-6 pb-6">
+                <div className="flex items-center justify-between gap-4">
+                  <div className="flex items-center gap-2">
+                    <span className="flex size-7 items-center justify-center rounded-lg bg-muted">
+                      <PlatformLogo platform="naver_cafe" className="size-4" />
+                    </span>
+                    <h2 className="font-medium">네이버 카페</h2>
+                  </div>
+                  <Button
+                    type="submit"
+                    variant={
+                      hasSavedNaverCafeSettings ? "secondary" : "default"
+                    }
+                    disabled={isNaverCafePending}
+                  >
+                    {isNaverCafePending ? "저장 중..." : "설정 저장"}
+                  </Button>
                 </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="menuname">게시판 이름</Label>
-                  <Input
-                    id="menuname"
-                    placeholder="공지사항"
-                    {...register("naverCafe.menuname")}
-                  />
-                  {errors.naverCafe?.menuname ? (
-                    <p className="text-xs text-destructive">
-                      {errors.naverCafe.menuname.message}
-                    </p>
-                  ) : null}
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="cafeUrl">카페 링크</Label>
+                    <Tooltip open={focusedBoardField === "cafeUrl"}>
+                      <TooltipTrigger
+                        disabled
+                        render={
+                          <Input
+                            id="cafeUrl"
+                            type="url"
+                            placeholder="https://cafe.naver.com/f-e/cafes/12345678/menus/0?viewType=L"
+                            {...cafeUrlField}
+                            onFocus={() => setFocusedBoardField("cafeUrl")}
+                            onBlur={(event) => {
+                              cafeUrlField.onBlur(event)
+                              setFocusedBoardField(null)
+                            }}
+                          />
+                        }
+                      />
+                      <TooltipContent>
+                        PC에서 전체글보기를 누른 후, 주소를 그대로 붙여넣으세요
+                      </TooltipContent>
+                    </Tooltip>
+                    {naverCafeForm.formState.errors.cafeUrl ? (
+                      <p className="text-xs text-destructive">
+                        {naverCafeForm.formState.errors.cafeUrl.message}
+                      </p>
+                    ) : null}
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="menuname">게시판 이름</Label>
+                    <Tooltip open={focusedBoardField === "menuname"}>
+                      <TooltipTrigger
+                        disabled
+                        render={
+                          <Input
+                            id="menuname"
+                            placeholder="공지사항"
+                            {...menunameField}
+                            onFocus={() => setFocusedBoardField("menuname")}
+                            onBlur={(event) => {
+                              menunameField.onBlur(event)
+                              setFocusedBoardField(null)
+                            }}
+                          />
+                        }
+                      />
+                      <TooltipContent>
+                        게시판 이름을 똑같이 입력해주세요
+                      </TooltipContent>
+                    </Tooltip>
+                    {naverCafeForm.formState.errors.menuname ? (
+                      <p className="text-xs text-destructive">
+                        {naverCafeForm.formState.errors.menuname.message}
+                      </p>
+                    ) : null}
+                  </div>
                 </div>
-              </div>
-            </section>
+                {naverCafeNotice ? (
+                  <p className="text-sm text-emerald-700 dark:text-emerald-400">
+                    {naverCafeNotice}
+                  </p>
+                ) : null}
+              </CardContent>
+            </form>
 
-            <section className="space-y-3 border-t pt-5">
-              <div className="flex items-center gap-2">
-                <span className="flex size-7 items-center justify-center rounded-lg bg-muted">
-                  <PlatformLogo platform="soop" className="size-4" />
-                </span>
-                <h2 className="font-medium">SOOP 게시판</h2>
-              </div>
-              <div className="grid gap-4 sm:grid-cols-2">
+            <form className="border-t" onSubmit={onSoopSubmit}>
+              <CardContent className="space-y-3 pt-6 pb-6">
+                <div className="flex items-center justify-between gap-4">
+                  <div className="flex items-center gap-2">
+                    <span className="flex size-7 items-center justify-center rounded-lg bg-muted">
+                      <PlatformLogo platform="soop" className="size-4" />
+                    </span>
+                    <h2 className="font-medium">SOOP 게시판</h2>
+                  </div>
+                  <Button
+                    type="submit"
+                    variant={hasSavedSoopSettings ? "secondary" : "default"}
+                    disabled={isSoopPending}
+                  >
+                    {isSoopPending ? "저장 중..." : "설정 저장"}
+                  </Button>
+                </div>
                 <div className="space-y-1.5">
-                  <Label htmlFor="userid">방송국 사용자 ID</Label>
-                  <Input
-                    id="userid"
-                    placeholder="creator_id"
-                    {...register("soop.userid")}
-                  />
-                  {errors.soop?.userid ? (
+                  <Label htmlFor="boardUrl">게시판 링크</Label>
+                  <Tooltip open={focusedBoardField === "boardUrl"}>
+                    <TooltipTrigger
+                      disabled
+                      render={
+                        <Input
+                          id="boardUrl"
+                          type="url"
+                          placeholder="https://www.sooplive.com/station/example_creator/board/987654321"
+                          {...boardUrlField}
+                          onFocus={() => setFocusedBoardField("boardUrl")}
+                          onBlur={(event) => {
+                            boardUrlField.onBlur(event)
+                            setFocusedBoardField(null)
+                          }}
+                        />
+                      }
+                    />
+                    <TooltipContent>
+                      작성할 게시판으로 이동한 후, 주소를 그대로 붙여넣으세요
+                    </TooltipContent>
+                  </Tooltip>
+                  {soopForm.formState.errors.boardUrl ? (
                     <p className="text-xs text-destructive">
-                      {errors.soop.userid.message}
+                      {soopForm.formState.errors.boardUrl.message}
                     </p>
                   ) : null}
                 </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="boardId">게시판 ID</Label>
-                  <Input
-                    id="boardId"
-                    placeholder="123362015"
-                    {...register("soop.boardId")}
-                  />
-                  {errors.soop?.boardId ? (
-                    <p className="text-xs text-destructive">
-                      {errors.soop.boardId.message}
-                    </p>
-                  ) : null}
-                </div>
-              </div>
-            </section>
-          </CardContent>
-          <div className="flex items-center justify-between border-t bg-muted/30 px-6 py-4">
-            <p className="text-sm text-emerald-700 dark:text-emerald-400">
-              {notice}
-            </p>
-            <Button type="submit" disabled={isPending}>
-              {isPending ? (
-                <LoaderCircleIcon className="animate-spin" />
-              ) : (
-                <SaveIcon />
-              )}
-              설정 저장
-            </Button>
-          </div>
-        </Card>
-      </form>
+                {soopNotice ? (
+                  <p className="text-sm text-emerald-700 dark:text-emerald-400">
+                    {soopNotice}
+                  </p>
+                ) : null}
+              </CardContent>
+            </form>
+
+            <aside className="border-t" aria-labelledby="board-guide-heading">
+              <CardContent className="space-y-3 pt-6 pb-6">
+                <h3 id="board-guide-heading" className="font-medium">
+                  안내
+                </h3>
+                <ol className="list-decimal space-y-2 pl-5 text-sm text-muted-foreground">
+                  <li>네이버 카페는 공지를 작성할 게시판(카테고리)가 아닌 전체글보기를 눌러 주소창을 복사해서 붙여넣고, 게시판 이름에 따로 게시판의 이름을 동일하게 적어주셔야 해요.</li>
+                  <li>SOOP 게시판은 전체게시판이 아닌, 공지를 쓸 세부 게시판으로 들어간 후 주소창을 복사해서 붙여넣어주세요. 글쓰기 화면까지는 들어가지 마세요.</li>
+                </ol>
+              </CardContent>
+            </aside>
+          </Card>
+        </TooltipProvider>
+      </section>
 
       <DeleteAccountSection />
     </div>

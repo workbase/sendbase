@@ -30,9 +30,11 @@ export type PublishedPostLink = {
 }
 
 export type PostDetail = PostSummary & {
+  editorTitle: string
   contentHtml: string
   contentText: string
   imageUrls: string[]
+  destinations: PublishPlatform[]
 }
 
 export type PlatformConnection = {
