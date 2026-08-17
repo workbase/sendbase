@@ -1,5 +1,4 @@
 import type { Metadata } from "next"
-import { Geist_Mono } from "next/font/google"
 import localFont from "next/font/local"
 
 import "./globals.css"
@@ -21,11 +20,6 @@ const pretendard = localFont({
   ],
   display: "swap",
   variable: "--font-sans",
-})
-
-const fontMono = Geist_Mono({
-  subsets: ["latin"],
-  variable: "--font-mono",
 })
 
 export const metadata: Metadata = {
@@ -61,7 +55,6 @@ export default function RootLayout({
       suppressHydrationWarning
       className={cn(
         "antialiased",
-        fontMono.variable,
         "font-sans",
         pretendard.variable
       )}
