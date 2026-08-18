@@ -13,9 +13,11 @@ import {
 import { publishToApiPlatform } from "@/lib/platforms/publish"
 import {
   htmlToPlainText,
+  imageMetadataFromHtml,
   imageUrlsFromHtml,
   sanitizeEditorHtml,
 } from "@/lib/posts/content"
+import { optimizePostImage } from "@/lib/posts/images"
 import { getPostDetail, getPostHistory } from "@/lib/posts/queries"
 import { postFormSchema } from "@/lib/posts/schema"
 import { createAdminClient } from "@/lib/supabase/admin"
@@ -73,6 +75,7 @@ async function persistPost(
   const html = sanitizeEditorHtml(input.contentHtml)
   const text = htmlToPlainText(html)
   const imageUrls = imageUrlsFromHtml(html)
+  const imageMetadata = imageMetadataFromHtml(html)
   const supabase = createAdminClient()
   const values = {
     user_id: userId,
@@ -80,6 +83,7 @@ async function persistPost(
     content_html: html,
     content_text: text,
     image_urls: imageUrls,
+    image_metadata: imageMetadata,
     status: "publishing" as const,
     updated_at: new Date().toISOString(),
   }
@@ -319,17 +323,37 @@ export async function uploadPostImageAction(formData: FormData) {
     throw new Error("JPG, PNG, WebP, GIF 이미지만 첨부할 수 있습니다.")
   if (file.size > 10 * 1024 * 1024)
     throw new Error("이미지는 10MB 이하여야 합니다.")
-  const extension = file.name.split(".").pop()?.toLowerCase() ?? "jpg"
-  const path = `${user.id}/${new Date().getUTCFullYear()}/${randomUUID()}.${extension}`
+  const optimized = await optimizePostImage(
+    Buffer.from(await file.arrayBuffer())
+  )
+  const imageId = randomUUID()
+  const basePath = `${user.id}/${new Date().getUTCFullYear()}/${imageId}`
+  const originalPath = `${basePath}.webp`
+  const thumbnailPath = `${basePath}-thumbnail.webp`
   const supabase = createAdminClient()
-  const { error } = await supabase.storage
-    .from("post-media")
-    .upload(path, file, {
-      contentType: file.type,
+  const bucket = supabase.storage.from("post-media")
+  const [originalUpload, thumbnailUpload] = await Promise.all([
+    bucket.upload(originalPath, optimized.original, {
+      contentType: "image/webp",
+      cacheControl: "31536000",
       upsert: false,
-    })
-  if (error) throw new Error(`이미지 업로드에 실패했습니다: ${error.message}`)
+    }),
+    bucket.upload(thumbnailPath, optimized.thumbnail, {
+      contentType: "image/webp",
+      cacheControl: "31536000",
+      upsert: false,
+    }),
+  ])
+  const uploadError = originalUpload.error ?? thumbnailUpload.error
+  if (uploadError) {
+    await bucket.remove([originalPath, thumbnailPath])
+    throw new Error(`이미지 업로드에 실패했습니다: ${uploadError.message}`)
+  }
+
   return {
-    url: supabase.storage.from("post-media").getPublicUrl(path).data.publicUrl,
+    url: bucket.getPublicUrl(originalPath).data.publicUrl,
+    thumbnailUrl: bucket.getPublicUrl(thumbnailPath).data.publicUrl,
+    width: optimized.width,
+    height: optimized.height,
   }
 }

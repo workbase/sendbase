@@ -85,6 +85,6 @@ export const getCurrentUser = cache(async (): Promise<AppUser | null> => {
 
 export async function requireUser() {
   const user = await getCurrentUser()
-  if (!user) redirect("/")
+  if (!user) redirect("/auth/clear-session")
   return user
 }

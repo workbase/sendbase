@@ -22,13 +22,13 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip"
 import { platformLimits } from "@/lib/platforms/limits"
-import type { PostDetail } from "@/lib/types"
+import type { PostHistoryItem } from "@/lib/types"
 
 const cardTiltClasses = ["-rotate-1", "rotate-0", "rotate-1"]
 const PostHistoryContext = createContext<{
-  addPost: (post: PostDetail) => void
-  loadPost: (post: PostDetail) => void
-  setPostLoader: (loader: ((post: PostDetail) => void) | null) => void
+  addPost: (post: PostHistoryItem) => void
+  loadPost: (post: PostHistoryItem) => void
+  setPostLoader: (loader: ((post: PostHistoryItem) => void) | null) => void
 } | null>(null)
 const scrollAnimationFrames = new WeakMap<HTMLDivElement, number>()
 
@@ -98,12 +98,14 @@ function PostMessage({
   post,
   onLoad,
 }: {
-  post: PostDetail
-  onLoad: (post: PostDetail) => void
+  post: PostHistoryItem
+  onLoad: (post: PostHistoryItem) => void
 }) {
+  const visibleImages = post.images.slice(0, 4)
+
   return (
     <article
-      className={`rounded-2xl bg-card p-5 sm:p-6 ${getCardTiltClass(post.id)}`}
+      className={`rounded-2xl bg-card p-5 [contain-intrinsic-size:auto_20rem] [content-visibility:auto] sm:p-6 ${getCardTiltClass(post.id)}`}
     >
       <div className="mb-2 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
         <h2 className="font-semibold tracking-tight">{post.title}</h2>
@@ -114,10 +116,33 @@ function PostMessage({
           {formattedDate(post.updatedAt)}
         </time>
       </div>
-      <div
-        className="text-sm leading-7 break-words [&_a]:underline [&_a]:underline-offset-4 [&_img]:my-4 [&_img]:max-h-96 [&_img]:max-w-full [&_img]:rounded-xl [&_img]:object-contain [&_p]:my-2"
-        dangerouslySetInnerHTML={{ __html: post.contentHtml }}
-      />
+      <p className="text-sm leading-7 break-words whitespace-pre-line">
+        {post.contentPreview}
+        {post.contentPreview.length === 320 ? "…" : null}
+      </p>
+      {post.images.length > 0 ? (
+        <div className="mt-4 grid grid-cols-2 gap-2">
+          {visibleImages.map((image) => (
+            // Thumbnails are already resized WebP assets, so another image proxy adds no value here.
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              key={image.url}
+              src={image.thumbnailUrl}
+              alt={image.alt}
+              width={image.width}
+              height={image.height}
+              loading="lazy"
+              decoding="async"
+              className="max-h-72 w-full rounded-xl object-contain"
+            />
+          ))}
+          {post.images.length > visibleImages.length ? (
+            <span className="col-span-2 text-xs text-muted-foreground">
+              이미지 {post.images.length - visibleImages.length}개 더 있음
+            </span>
+          ) : null}
+        </div>
+      ) : null}
       <TooltipProvider delay={0}>
         <div className="mt-4 flex flex-wrap gap-2">
           <Tooltip>
@@ -180,7 +205,7 @@ export function PostHistory({
   initialPosts,
 }: {
   children: React.ReactNode
-  initialPosts: PostDetail[]
+  initialPosts: PostHistoryItem[]
 }) {
   const viewportRef = useRef<HTMLDivElement>(null)
   const contentRef = useRef<HTMLDivElement>(null)
@@ -191,7 +216,8 @@ export function PostHistory({
   const hasScrolledUpRef = useRef(false)
   const isLoadingRef = useRef(false)
   const lastScrollTopRef = useRef(0)
-  const postLoaderRef = useRef<((post: PostDetail) => void) | null>(null)
+  const pendingPostRef = useRef<PostHistoryItem | null>(null)
+  const postLoaderRef = useRef<((post: PostHistoryItem) => void) | null>(null)
   const [posts, setPosts] = useState(() => [...initialPosts].reverse())
   const [hasMore, setHasMore] = useState(
     initialPosts.length === POST_HISTORY_PAGE_SIZE
@@ -199,19 +225,28 @@ export function PostHistory({
   const [isLoading, setIsLoading] = useState(false)
   const [isInitialPositioned, setIsInitialPositioned] = useState(false)
 
-  const addPost = useCallback((post: PostDetail) => {
+  const addPost = useCallback((post: PostHistoryItem) => {
     shouldStickToBottomRef.current = true
     setPosts((current) => [
       ...current.filter((item) => item.id !== post.id),
       post,
     ])
   }, [])
-  const loadPost = useCallback((post: PostDetail) => {
-    postLoaderRef.current?.(post)
+  const loadPost = useCallback((post: PostHistoryItem) => {
+    if (postLoaderRef.current) {
+      postLoaderRef.current(post)
+      return
+    }
+    pendingPostRef.current = post
   }, [])
   const setPostLoader = useCallback(
-    (loader: ((post: PostDetail) => void) | null) => {
+    (loader: ((post: PostHistoryItem) => void) | null) => {
       postLoaderRef.current = loader
+      if (loader && pendingPostRef.current) {
+        const pendingPost = pendingPostRef.current
+        pendingPostRef.current = null
+        loader(pendingPost)
+      }
     },
     []
   )

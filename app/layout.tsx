@@ -3,27 +3,24 @@ import localFont from "next/font/local"
 
 import "./globals.css"
 import { ThemeProvider } from "@/components/theme-provider"
-import { Toaster } from "@/components/ui/sonner"
 import { cn } from "@/lib/utils"
 
 const pretendard = localFont({
   src: [
-    { path: "../public/fonts/Pretendard-Thin.woff2", weight: "100" },
-    { path: "../public/fonts/Pretendard-ExtraLight.woff2", weight: "200" },
-    { path: "../public/fonts/Pretendard-Light.woff2", weight: "300" },
     { path: "../public/fonts/Pretendard-Regular.woff2", weight: "400" },
     { path: "../public/fonts/Pretendard-Medium.woff2", weight: "500" },
     { path: "../public/fonts/Pretendard-SemiBold.woff2", weight: "600" },
-    { path: "../public/fonts/Pretendard-Bold.woff2", weight: "700" },
-    { path: "../public/fonts/Pretendard-ExtraBold.woff2", weight: "800" },
-    { path: "../public/fonts/Pretendard-Black.woff2", weight: "900" },
   ],
   display: "swap",
+  preload: false,
   variable: "--font-sans",
 })
 
 export const metadata: Metadata = {
-  title: { default: "센드베이스 | 시청자의 피드에 먼저 다가가는 방법", template: "%s · 센드베이스" },
+  title: {
+    default: "센드베이스 | 시청자의 피드에 먼저 다가가는 방법",
+    template: "%s · 센드베이스",
+  },
   description: "방송 공지를 모든 채널에 한 번에 게시하세요. 완전 무료.",
   openGraph: {
     images: [
@@ -53,17 +50,10 @@ export default function RootLayout({
     <html
       lang="ko"
       suppressHydrationWarning
-      className={cn(
-        "antialiased",
-        "font-sans",
-        pretendard.variable
-      )}
+      className={cn("antialiased", "font-sans", pretendard.variable)}
     >
       <body className="min-h-svh">
-        <ThemeProvider>
-          {children}
-          <Toaster />
-        </ThemeProvider>
+        <ThemeProvider>{children}</ThemeProvider>
       </body>
     </html>
   )

@@ -24,17 +24,30 @@ export type PostSummary = {
   links: PublishedPostLink[]
 }
 
+export type PostImage = {
+  url: string
+  thumbnailUrl: string
+  width: number
+  height: number
+  alt: string
+}
+
+export type PostHistoryItem = PostSummary & {
+  contentPreview: string
+  images: PostImage[]
+  destinations: PublishPlatform[]
+}
+
 export type PublishedPostLink = {
   platform: PublishPlatform
   url: string
 }
 
-export type PostDetail = PostSummary & {
+export type PostDetail = PostHistoryItem & {
   editorTitle: string
   contentHtml: string
   contentText: string
   imageUrls: string[]
-  destinations: PublishPlatform[]
 }
 
 export type PlatformConnection = {

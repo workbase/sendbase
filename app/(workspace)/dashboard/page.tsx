@@ -1,19 +1,17 @@
 import Link from "next/link"
+import { redirect } from "next/navigation"
 import { Settings2Icon } from "lucide-react"
 
 import { SendbaseLogo } from "@/components/logos/sendbase-logo"
 import { Button } from "@/components/ui/button"
-import { PostEditor } from "@/components/workspace/post-editor"
+import { DeferredPostEditor } from "@/components/workspace/deferred-post-editor"
 import { PostHistory } from "@/components/workspace/post-history"
-import { requireUser } from "@/lib/auth/session"
-import { getConnections, getPostHistory } from "@/lib/posts/queries"
+import { getDashboardInitialData } from "@/lib/dashboard/queries"
 
 export default async function DashboardPage() {
-  const user = await requireUser()
-  const [posts, connections] = await Promise.all([
-    getPostHistory(user.id),
-    getConnections(user.id),
-  ])
+  const dashboard = await getDashboardInitialData()
+  if (!dashboard) redirect("/auth/clear-session")
+  const { posts, connections } = dashboard
 
   return (
     <PostHistory initialPosts={posts}>
@@ -38,7 +36,7 @@ export default async function DashboardPage() {
       >
         <Settings2Icon />
       </Button>
-      <PostEditor connections={connections} />
+      <DeferredPostEditor connections={connections} />
     </PostHistory>
   )
 }

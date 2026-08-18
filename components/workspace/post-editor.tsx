@@ -68,7 +68,7 @@ import {
 import type {
   ExtensionPublishJob,
   PlatformConnection,
-  PostDetail,
+  PostHistoryItem,
   PublishPlatform,
 } from "@/lib/types"
 import { publishPlatforms } from "@/lib/types"
@@ -90,6 +90,26 @@ const loginProviders = [
   { id: "cime", label: "씨미로 계속하기" },
 ] as const
 
+const OptimizedImage = Image.extend({
+  addAttributes() {
+    return {
+      ...this.parent?.(),
+      width: {
+        default: null,
+        parseHTML: (element) => element.getAttribute("width"),
+      },
+      height: {
+        default: null,
+        parseHTML: (element) => element.getAttribute("height"),
+      },
+      "data-thumbnail-src": {
+        default: null,
+        parseHTML: (element) => element.getAttribute("data-thumbnail-src"),
+      },
+    }
+  },
+})
+
 function subscribeToHydration() {
   return () => undefined
 }
@@ -100,6 +120,14 @@ function getClientHydrationSnapshot() {
 
 function getServerHydrationSnapshot() {
   return false
+}
+
+function getClientLoginErrorSnapshot() {
+  return new URLSearchParams(window.location.search).get("error") ?? undefined
+}
+
+function getServerLoginErrorSnapshot() {
+  return undefined
 }
 
 function readSavedDestinations(): PublishPlatform[] | null {
@@ -169,89 +197,87 @@ function runExtensionJob(job: ExtensionPublishJob) {
     url?: string
     response?: Record<string, unknown>
     completedUrlResponse?: Record<string, unknown>
-  }>(
-    (resolve) => {
-      const resultType =
-        job.platform === "naver_cafe"
-          ? "SENDBASE_NAVER_CAFE_AUTOWRITE_RESULT"
-          : "SENDBASE_SOOP_AUTOWRITE_RESULT"
-      const completedUrlType =
-        job.platform === "naver_cafe"
-          ? "SENDBASE_NAVER_CAFE_AUTOWRITE_COMPLETED_URL"
-          : "SENDBASE_SOOP_AUTOWRITE_COMPLETED_URL"
-      let successfulResult: { ok: true; message: string } | null = null
-      let completedUrl: string | null = null
-      let response: Record<string, unknown> | undefined
-      let completedUrlResponse: Record<string, unknown> | undefined
+  }>((resolve) => {
+    const resultType =
+      job.platform === "naver_cafe"
+        ? "SENDBASE_NAVER_CAFE_AUTOWRITE_RESULT"
+        : "SENDBASE_SOOP_AUTOWRITE_RESULT"
+    const completedUrlType =
+      job.platform === "naver_cafe"
+        ? "SENDBASE_NAVER_CAFE_AUTOWRITE_COMPLETED_URL"
+        : "SENDBASE_SOOP_AUTOWRITE_COMPLETED_URL"
+    let successfulResult: { ok: true; message: string } | null = null
+    let completedUrl: string | null = null
+    let response: Record<string, unknown> | undefined
+    let completedUrlResponse: Record<string, unknown> | undefined
 
-      const cleanup = () => {
-        window.clearTimeout(timeout)
-        window.removeEventListener("message", listener)
-      }
-
-      const finishIfComplete = () => {
-        if (!successfulResult || !completedUrl) return
-        cleanup()
-        resolve({
-          ...successfulResult,
-          url: completedUrl,
-          response,
-          completedUrlResponse,
-        })
-      }
-
-      const timeout = window.setTimeout(() => {
-        cleanup()
-        resolve({
-          ...(successfulResult ?? {
-            ok: false,
-            message: "확장 프로그램 응답 시간이 초과되었습니다.",
-          }),
-          response,
-          completedUrlResponse,
-        })
-      }, 120_000)
-      const listener = (event: MessageEvent<unknown>) => {
-        if (event.origin !== window.location.origin) return
-        const data = event.data as Record<string, unknown> | null
-        if (!data || data.requestId !== job.requestId) return
-
-        if (data.type === completedUrlType && typeof data.url === "string") {
-          completedUrl = data.url
-          completedUrlResponse = data
-          finishIfComplete()
-          return
-        }
-
-        if (data.type !== resultType) return
-        const result = data.result as Record<string, unknown> | undefined
-        response = data
-        const message =
-          typeof result?.message === "string"
-            ? result.message
-            : typeof result?.error === "string"
-              ? result.error
-              : "자동 작성 결과를 확인해 주세요."
-        if (result?.ok !== true) {
-          cleanup()
-          resolve({ ok: false, message, response })
-          return
-        }
-        successfulResult = { ok: true, message }
-        finishIfComplete()
-      }
-      window.addEventListener("message", listener)
-      window.postMessage(
-        {
-          source: "SENDBASE_SAAS",
-          type: job.messageType,
-          requestId: job.requestId,
-          payload: job.payload,
-        },
-        window.location.origin
-      )
+    const cleanup = () => {
+      window.clearTimeout(timeout)
+      window.removeEventListener("message", listener)
     }
-  )
+
+    const finishIfComplete = () => {
+      if (!successfulResult || !completedUrl) return
+      cleanup()
+      resolve({
+        ...successfulResult,
+        url: completedUrl,
+        response,
+        completedUrlResponse,
+      })
+    }
+
+    const timeout = window.setTimeout(() => {
+      cleanup()
+      resolve({
+        ...(successfulResult ?? {
+          ok: false,
+          message: "확장 프로그램 응답 시간이 초과되었습니다.",
+        }),
+        response,
+        completedUrlResponse,
+      })
+    }, 120_000)
+    const listener = (event: MessageEvent<unknown>) => {
+      if (event.origin !== window.location.origin) return
+      const data = event.data as Record<string, unknown> | null
+      if (!data || data.requestId !== job.requestId) return
+
+      if (data.type === completedUrlType && typeof data.url === "string") {
+        completedUrl = data.url
+        completedUrlResponse = data
+        finishIfComplete()
+        return
+      }
+
+      if (data.type !== resultType) return
+      const result = data.result as Record<string, unknown> | undefined
+      response = data
+      const message =
+        typeof result?.message === "string"
+          ? result.message
+          : typeof result?.error === "string"
+            ? result.error
+            : "자동 작성 결과를 확인해 주세요."
+      if (result?.ok !== true) {
+        cleanup()
+        resolve({ ok: false, message, response })
+        return
+      }
+      successfulResult = { ok: true, message }
+      finishIfComplete()
+    }
+    window.addEventListener("message", listener)
+    window.postMessage(
+      {
+        source: "SENDBASE_SAAS",
+        type: job.messageType,
+        requestId: job.requestId,
+        payload: job.payload,
+      },
+      window.location.origin
+    )
+  })
 }
 
 export function PostEditor({
@@ -273,18 +299,15 @@ export function PostEditor({
       ),
     [connections]
   )
-  const defaultDestinations = useMemo(
-    () => {
-      if (mode === "landing") {
-        return landingDefaultDestinations.filter((platform) =>
-          connected.has(platform)
-        )
-      }
+  const defaultDestinations = useMemo(() => {
+    if (mode === "landing") {
+      return landingDefaultDestinations.filter((platform) =>
+        connected.has(platform)
+      )
+    }
 
-      return Array.from(connected)
-    },
-    [connected, mode]
-  )
+    return Array.from(connected)
+  }, [connected, mode])
   const initialContentHtml =
     mode === "landing" ? landingEditorContentHtml : "<p></p>"
   const [plainText, setPlainText] = useState(
@@ -295,6 +318,12 @@ export function PostEditor({
     getClientHydrationSnapshot,
     getServerHydrationSnapshot
   )
+  const urlLoginError = useSyncExternalStore(
+    subscribeToHydration,
+    getClientLoginErrorSnapshot,
+    getServerLoginErrorSnapshot
+  )
+  const effectiveLoginError = loginError ?? urlLoginError
   const [isPublishing, startPublishing] = useTransition()
   const imageInputRef = useRef<HTMLInputElement>(null)
   const editorContainerRef = useRef<HTMLDivElement>(null)
@@ -381,7 +410,7 @@ export function PostEditor({
         autolink: true,
         defaultProtocol: "https",
       }),
-      Image.configure({ allowBase64: false, inline: false }),
+      OptimizedImage.configure({ allowBase64: false, inline: false }),
       TextAlign.configure({
         types: ["paragraph"],
         alignments: ["left", "center", "right"],
@@ -412,23 +441,37 @@ export function PostEditor({
   })
 
   const loadPostIntoEditor = useCallback(
-    (post: PostDetail) => {
-      reset({
-        title: post.editorTitle,
-        contentHtml: post.contentHtml,
-        destinations: post.destinations,
-      })
-      editor?.commands.setContent(post.contentHtml, { emitUpdate: false })
-      setPlainText(post.contentText)
-      requestAnimationFrame(() => {
-        editor?.commands.focus("end")
-        editorContainerRef.current?.scrollIntoView({
-          behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches
-            ? "auto"
-            : "smooth",
-          block: "end",
+    async (post: PostHistoryItem) => {
+      try {
+        const detail = await getPostDetailAction(post.id)
+        if (!detail) {
+          toast.error("게시물을 찾을 수 없습니다.")
+          return
+        }
+        reset({
+          title: detail.editorTitle,
+          contentHtml: detail.contentHtml,
+          destinations: detail.destinations,
         })
-      })
+        editor?.commands.setContent(detail.contentHtml, { emitUpdate: false })
+        setPlainText(detail.contentText)
+        requestAnimationFrame(() => {
+          editor?.commands.focus("end")
+          editorContainerRef.current?.scrollIntoView({
+            behavior: window.matchMedia("(prefers-reduced-motion: reduce)")
+              .matches
+              ? "auto"
+              : "smooth",
+            block: "end",
+          })
+        })
+      } catch (error) {
+        toast.error(
+          error instanceof Error
+            ? error.message
+            : "게시물을 불러오지 못했습니다."
+        )
+      }
     },
     [editor, reset]
   )
@@ -467,15 +510,33 @@ export function PostEditor({
       }
       const previewUrl = URL.createObjectURL(file)
       previewImageUrlRef.current = previewUrl
-      editor?.chain().focus().setImage({ src: previewUrl, alt: file.name }).run()
+      editor
+        ?.chain()
+        .focus()
+        .setImage({ src: previewUrl, alt: file.name })
+        .run()
       return
     }
 
     try {
       const form = new FormData()
       form.set("file", file)
-      const { url } = await uploadPostImageAction(form)
-      editor?.chain().focus().setImage({ src: url, alt: file.name }).run()
+      const { url, thumbnailUrl, width, height } =
+        await uploadPostImageAction(form)
+      editor
+        ?.chain()
+        .focus()
+        .insertContent({
+          type: "image",
+          attrs: {
+            src: url,
+            alt: file.name,
+            width,
+            height,
+            "data-thumbnail-src": thumbnailUrl,
+          },
+        })
+        .run()
     } catch (error) {
       toast.error(
         error instanceof Error ? error.message : "이미지를 첨부하지 못했습니다."
@@ -489,10 +550,7 @@ export function PostEditor({
         const requiresExtension = values.destinations.some(
           (platform) => platform === "naver_cafe" || platform === "soop"
         )
-        if (
-          requiresExtension &&
-          getStoredExtensionInstallation() !== true
-        ) {
+        if (requiresExtension && getStoredExtensionInstallation() !== true) {
           toast.error(
             "센드베이스 게시글 플러그인을 설치한 뒤 설정에서 설치 확인을 눌러 주세요."
           )
@@ -734,10 +792,8 @@ export function PostEditor({
             )}
           </div>
           {mode === "landing" ? (
-            <Popover defaultOpen={Boolean(loginError)}>
-              <PopoverTrigger
-                render={<Button className="h-10 shadow-sm" />}
-              >
+            <Popover defaultOpen={Boolean(effectiveLoginError)}>
+              <PopoverTrigger render={<Button className="h-10 shadow-sm" />}>
                 무료로 시작하기
               </PopoverTrigger>
               <PopoverContent align="end" side="top" sideOffset={10}>
@@ -747,12 +803,12 @@ export function PostEditor({
                     로그인과 회원가입은 하나로 연결됩니다.
                   </PopoverDescription>
                 </PopoverHeader>
-                {loginError ? (
+                {effectiveLoginError ? (
                   <p
                     role="alert"
                     className="rounded-md bg-destructive/10 px-2.5 py-2 text-xs text-destructive"
                   >
-                    {loginError}
+                    {effectiveLoginError}
                   </p>
                 ) : null}
                 <div className="flex flex-col gap-1.5">
@@ -770,9 +826,7 @@ export function PostEditor({
                           className="size-4"
                         />
                       </span>
-                      <span className="flex-1 text-left">
-                        {provider.label}
-                      </span>
+                      <span className="flex-1 text-left">{provider.label}</span>
                       <ArrowRightIcon className="text-muted-foreground" />
                     </Button>
                   ))}

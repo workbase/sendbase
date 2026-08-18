@@ -1,10 +1,7 @@
-import { redirect } from "next/navigation"
-
 import { PlatformLogo } from "@/components/logos/platform-logo"
-import { BrowserSupportDialog } from "@/components/landing/browser-support-dialog"
+import { BrowserSupportGate } from "@/components/landing/browser-support-gate"
 import { SendbaseLogo } from "@/components/logos/sendbase-logo"
 import { PostEditor } from "@/components/workspace/post-editor"
-import { getCurrentUser } from "@/lib/auth/session"
 import { platformLimits } from "@/lib/platforms/limits"
 import type { PlatformConnection, PublishPlatform } from "@/lib/types"
 import { publishPlatforms } from "@/lib/types"
@@ -64,18 +61,10 @@ const mockPosts: Array<{
   },
 ]
 
-export default async function LandingPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ error?: string }>
-}) {
-  const user = await getCurrentUser()
-  if (user) redirect("/dashboard")
-  const { error } = await searchParams
-
+export default function LandingPage() {
   return (
     <main>
-      <BrowserSupportDialog />
+      <BrowserSupportGate />
       <div className="fixed top-5 left-5 z-20 text-foreground">
         <SendbaseLogo className="h-auto w-32" />
       </div>
@@ -97,11 +86,7 @@ export default async function LandingPage({
             ))}
           </div>
           <div className="pt-12">
-            <PostEditor
-              connections={landingConnections}
-              loginError={error}
-              mode="landing"
-            />
+            <PostEditor connections={landingConnections} mode="landing" />
           </div>
         </div>
       </section>

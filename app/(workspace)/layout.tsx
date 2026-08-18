@@ -1,3 +1,5 @@
+import { Toaster } from "@/components/ui/sonner"
+
 export default async function WorkspaceLayout({
   children,
 }: {
@@ -6,6 +8,7 @@ export default async function WorkspaceLayout({
   return (
     <main className="min-h-svh bg-muted">
       {children}
+      <Toaster />
     </main>
   )
 }
