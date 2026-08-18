@@ -18,13 +18,46 @@ type ConnectionRecord = {
   settings: Record<string, string>
 }
 
+const THREADS_CONTAINER_POLL_DELAYS_MS = [
+  1_000, 1_500, 2_500, 4_000, 6_000, 8_000,
+]
+const THREADS_PUBLISH_RETRY_DELAYS_MS = [1_000, 2_000, 4_000]
+
+class PlatformApiError extends Error {
+  readonly apiCode: number | null
+  readonly apiSubcode: number | null
+  readonly httpStatus: number
+
+  constructor(
+    message: string,
+    options: {
+      apiCode: number | null
+      apiSubcode: number | null
+      httpStatus: number
+    }
+  ) {
+    super(message)
+    this.name = "PlatformApiError"
+    this.apiCode = options.apiCode
+    this.apiSubcode = options.apiSubcode
+    this.httpStatus = options.httpStatus
+  }
+}
+
 function asRecord(value: unknown): Record<string, unknown> {
-  return typeof value === "object" && value !== null ? (value as Record<string, unknown>) : {}
+  return typeof value === "object" && value !== null
+    ? (value as Record<string, unknown>)
+    : {}
 }
 
 function stringValue(record: Record<string, unknown>, key: string) {
   const value = record[key]
   return typeof value === "string" ? value : null
+}
+
+function numberValue(record: Record<string, unknown>, key: string) {
+  const value = record[key]
+  return typeof value === "number" ? value : null
 }
 
 function redactSensitiveValues(value: unknown): unknown {
@@ -41,7 +74,11 @@ function redactSensitiveValues(value: unknown): unknown {
   )
 }
 
-async function responseJson(response: Response, platform: PublishPlatform, operation: string) {
+async function responseJson(
+  response: Response,
+  platform: PublishPlatform,
+  operation: string
+) {
   const json: unknown = await response.json().catch(() => ({}))
   console.info("[publish][api-response]", {
     platform,
@@ -54,20 +91,31 @@ async function responseJson(response: Response, platform: PublishPlatform, opera
   if (!response.ok) {
     const record = asRecord(json)
     const nested = asRecord(record.error)
-    throw new Error(
+    throw new PlatformApiError(
       stringValue(nested, "message") ??
         stringValue(record, "message") ??
-        `플랫폼 API 요청이 실패했습니다. (${response.status})`
+        `플랫폼 API 요청이 실패했습니다. (${response.status})`,
+      {
+        apiCode: numberValue(nested, "code"),
+        apiSubcode: numberValue(nested, "error_subcode"),
+        httpStatus: response.status,
+      }
     )
   }
   return asRecord(json)
+}
+
+function wait(milliseconds: number) {
+  return new Promise<void>((resolve) => setTimeout(resolve, milliseconds))
 }
 
 async function getConnection(userId: string, platform: PublishPlatform) {
   const supabase = createAdminClient()
   const { data, error } = await supabase
     .from("platform_connections")
-    .select("id, external_account_id, access_token_encrypted, refresh_token_encrypted, expires_at, settings")
+    .select(
+      "id, external_account_id, access_token_encrypted, refresh_token_encrypted, expires_at, settings"
+    )
     .eq("user_id", userId)
     .eq("platform", platform)
     .maybeSingle()
@@ -105,7 +153,8 @@ async function getConnection(userId: string, platform: PublishPlatform) {
     if (!accessToken) throw new Error("Threads 토큰을 갱신하지 못했습니다.")
     connection.accessToken = accessToken
     connection.expiresAt = new Date(
-      Date.now() + (typeof expiresIn === "number" ? expiresIn : 5_184_000) * 1000
+      Date.now() +
+        (typeof expiresIn === "number" ? expiresIn : 5_184_000) * 1000
     ).toISOString()
   } else if (platform === "x" && connection.refreshToken) {
     const headers: Record<string, string> = {
@@ -126,7 +175,11 @@ async function getConnection(userId: string, platform: PublishPlatform) {
       }),
       cache: "no-store",
     })
-    const result = await responseJson(response, platform, "refresh-access-token")
+    const result = await responseJson(
+      response,
+      platform,
+      "refresh-access-token"
+    )
     const accessToken = stringValue(result, "access_token")
     if (!accessToken) throw new Error("X 토큰을 갱신하지 못했습니다.")
     connection.accessToken = accessToken
@@ -134,7 +187,8 @@ async function getConnection(userId: string, platform: PublishPlatform) {
       stringValue(result, "refresh_token") ?? connection.refreshToken
     connection.expiresAt = new Date(
       Date.now() +
-        (typeof result.expires_in === "number" ? result.expires_in : 7_200) * 1000
+        (typeof result.expires_in === "number" ? result.expires_in : 7_200) *
+          1000
     ).toISOString()
   } else {
     return connection
@@ -160,16 +214,116 @@ async function createThreadsContainer(
   params: Record<string, string>
 ) {
   const body = new URLSearchParams({ ...params, access_token: token })
-  const response = await fetch(`https://graph.threads.net/v1.0/${userId}/threads`, {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body,
-    cache: "no-store",
-  })
+  const response = await fetch(
+    `https://graph.threads.net/v1.0/${userId}/threads`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body,
+      cache: "no-store",
+    }
+  )
   const result = await responseJson(response, "threads", "create-container")
   const id = stringValue(result, "id")
   if (!id) throw new Error("Threads 미디어 컨테이너 ID가 없습니다.")
   return id
+}
+
+async function waitForThreadsContainer(containerId: string, token: string) {
+  for (
+    let attempt = 0;
+    attempt <= THREADS_CONTAINER_POLL_DELAYS_MS.length;
+    attempt += 1
+  ) {
+    const url = new URL(`https://graph.threads.net/v1.0/${containerId}`)
+    url.searchParams.set("fields", "id,status,error_message")
+    url.searchParams.set("access_token", token)
+    let result: Record<string, unknown>
+    try {
+      result = await responseJson(
+        await fetch(url, { cache: "no-store" }),
+        "threads",
+        "container-status"
+      )
+    } catch (error) {
+      const delay = THREADS_CONTAINER_POLL_DELAYS_MS[attempt]
+      if (!isThreadsMediaNotFound(error) || delay === undefined) throw error
+      await wait(delay)
+      continue
+    }
+    const status = stringValue(result, "status")
+
+    if (status === "FINISHED") return
+    if (status === "ERROR") {
+      throw new Error(
+        stringValue(result, "error_message") ??
+          "Threads에서 미디어를 처리하지 못했습니다."
+      )
+    }
+    if (status === "EXPIRED") {
+      throw new Error("Threads 미디어 컨테이너가 만료되었습니다.")
+    }
+    if (status === "PUBLISHED") {
+      throw new Error("Threads 미디어 컨테이너가 이미 게시되었습니다.")
+    }
+    if (status !== "IN_PROGRESS") {
+      throw new Error("Threads 미디어 처리 상태를 확인하지 못했습니다.")
+    }
+
+    const delay = THREADS_CONTAINER_POLL_DELAYS_MS[attempt]
+    if (delay === undefined) {
+      throw new Error(
+        "Threads 미디어 처리가 지연되고 있습니다. 잠시 후 다시 시도해 주세요."
+      )
+    }
+    await wait(delay)
+  }
+}
+
+function isThreadsMediaNotFound(error: unknown) {
+  return (
+    error instanceof PlatformApiError &&
+    error.apiCode === 24 &&
+    error.apiSubcode === 4_279_009
+  )
+}
+
+async function publishThreadsContainer(
+  userId: string,
+  containerId: string,
+  token: string
+) {
+  for (
+    let attempt = 0;
+    attempt <= THREADS_PUBLISH_RETRY_DELAYS_MS.length;
+    attempt += 1
+  ) {
+    const response = await fetch(
+      `https://graph.threads.net/v1.0/${userId}/threads_publish`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({
+          creation_id: containerId,
+          access_token: token,
+        }),
+        cache: "no-store",
+      }
+    )
+
+    try {
+      const result = await responseJson(response, "threads", "publish")
+      const id = stringValue(result, "id")
+      if (!id) throw new Error("Threads 게시물 ID가 없습니다.")
+      return id
+    } catch (error) {
+      const delay = THREADS_PUBLISH_RETRY_DELAYS_MS[attempt]
+      if (!isThreadsMediaNotFound(error) || delay === undefined) throw error
+      await wait(delay)
+    }
+  }
+
+  throw new Error("Threads 게시 요청을 완료하지 못했습니다.")
 }
 
 async function publishThreads(input: PublishInput) {
@@ -177,57 +331,66 @@ async function publishThreads(input: PublishInput) {
   if (!connection.accessToken || !connection.externalAccountId) {
     throw new Error("Threads 연결 정보가 완전하지 않습니다.")
   }
+  const accessToken = connection.accessToken
+  const externalAccountId = connection.externalAccountId
 
-  const mediaContainerId =
-    input.imageUrls.length === 0
-      ? await createThreadsContainer(connection.externalAccountId, connection.accessToken, {
-          media_type: "TEXT",
-          text: input.text,
+  if (input.imageUrls.length === 0) {
+    const id = await createThreadsContainer(externalAccountId, accessToken, {
+      media_type: "TEXT",
+      text: input.text,
+      auto_publish_text: "true",
+    })
+    return { id, url: `https://www.threads.net/post/${id}` }
+  }
+
+  let mediaContainerId: string
+  if (input.imageUrls.length === 1) {
+    mediaContainerId = await createThreadsContainer(
+      externalAccountId,
+      accessToken,
+      {
+        media_type: "IMAGE",
+        image_url: input.imageUrls[0],
+        text: input.text,
+      }
+    )
+  } else {
+    const children = await Promise.all(
+      input.imageUrls.map((imageUrl) =>
+        createThreadsContainer(externalAccountId, accessToken, {
+          media_type: "IMAGE",
+          image_url: imageUrl,
+          is_carousel_item: "true",
         })
-      : input.imageUrls.length === 1
-        ? await createThreadsContainer(connection.externalAccountId, connection.accessToken, {
-            media_type: "IMAGE",
-            image_url: input.imageUrls[0],
-            text: input.text,
-          })
-        : await (async () => {
-            const children = await Promise.all(
-              input.imageUrls.map((imageUrl) =>
-                createThreadsContainer(connection.externalAccountId!, connection.accessToken!, {
-                  media_type: "IMAGE",
-                  image_url: imageUrl,
-                  is_carousel_item: "true",
-                })
-              )
-            )
-            return createThreadsContainer(connection.externalAccountId!, connection.accessToken!, {
-              media_type: "CAROUSEL",
-              children: children.join(","),
-              text: input.text,
-            })
-          })()
+      )
+    )
+    await Promise.all(
+      children.map((childId) => waitForThreadsContainer(childId, accessToken))
+    )
+    mediaContainerId = await createThreadsContainer(
+      externalAccountId,
+      accessToken,
+      {
+        media_type: "CAROUSEL",
+        children: children.join(","),
+        text: input.text,
+      }
+    )
+  }
 
-  const response = await fetch(
-    `https://graph.threads.net/v1.0/${connection.externalAccountId}/threads_publish`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({
-        creation_id: mediaContainerId,
-        access_token: connection.accessToken,
-      }),
-      cache: "no-store",
-    }
+  await waitForThreadsContainer(mediaContainerId, accessToken)
+  const id = await publishThreadsContainer(
+    externalAccountId,
+    mediaContainerId,
+    accessToken
   )
-  const result = await responseJson(response, "threads", "publish")
-  const id = stringValue(result, "id")
-  if (!id) throw new Error("Threads 게시물 ID가 없습니다.")
   return { id, url: `https://www.threads.net/post/${id}` }
 }
 
 async function uploadXImage(accessToken: string, imageUrl: string) {
   const imageResponse = await fetch(imageUrl, { cache: "no-store" })
-  if (!imageResponse.ok) throw new Error("X에 첨부할 이미지를 불러오지 못했습니다.")
+  if (!imageResponse.ok)
+    throw new Error("X에 첨부할 이미지를 불러오지 못했습니다.")
   const buffer = Buffer.from(await imageResponse.arrayBuffer())
   const response = await fetch("https://api.x.com/2/media/upload", {
     method: "POST",
@@ -277,11 +440,16 @@ async function publishX(input: PublishInput) {
 async function publishDiscord(input: PublishInput) {
   const connection = await getConnection(input.userId, "discord")
   const webhookUrl = connection.settings.webhookUrl
-  if (!webhookUrl || !webhookUrl.startsWith("https://discord.com/api/webhooks/")) {
+  if (
+    !webhookUrl ||
+    !webhookUrl.startsWith("https://discord.com/api/webhooks/")
+  ) {
     throw new Error("Discord 웹훅을 다시 연결해 주세요.")
   }
 
-  const content = input.title ? `**${input.title}**\n\n${input.text}` : input.text
+  const content = input.title
+    ? `**${input.title}**\n\n${input.text}`
+    : input.text
   let response: Response
   if (input.imageUrls.length === 0) {
     response = await fetch(`${webhookUrl}?wait=true`, {
@@ -295,7 +463,8 @@ async function publishDiscord(input: PublishInput) {
     const attachments = await Promise.all(
       input.imageUrls.map(async (url, index) => {
         const image = await fetch(url, { cache: "no-store" })
-        if (!image.ok) throw new Error("Discord에 첨부할 이미지를 불러오지 못했습니다.")
+        if (!image.ok)
+          throw new Error("Discord에 첨부할 이미지를 불러오지 못했습니다.")
         const blob = await image.blob()
         const filename = `image-${index + 1}.${blob.type.split("/")[1] ?? "jpg"}`
         form.append(`files[${index}]`, blob, filename)
@@ -318,11 +487,17 @@ async function publishDiscord(input: PublishInput) {
   if (!id) throw new Error("Discord 메시지 ID가 없습니다.")
   const channelId = stringValue(result, "channel_id")
   const guildId = stringValue(result, "guild_id")
-  const url = guildId && channelId ? `https://discord.com/channels/${guildId}/${channelId}/${id}` : null
+  const url =
+    guildId && channelId
+      ? `https://discord.com/channels/${guildId}/${channelId}/${id}`
+      : null
   return { id, url }
 }
 
-export async function publishToApiPlatform(platform: PublishPlatform, input: PublishInput) {
+export async function publishToApiPlatform(
+  platform: PublishPlatform,
+  input: PublishInput
+) {
   if (platform === "threads") return publishThreads(input)
   if (platform === "x") return publishX(input)
   if (platform === "discord") return publishDiscord(input)
