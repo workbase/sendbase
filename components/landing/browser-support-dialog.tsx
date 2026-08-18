@@ -24,7 +24,7 @@ export function BrowserSupportDialog() {
     >
       <DialogContent showCloseButton={false}>
         <DialogHeader>
-          <DialogTitle>모든 기능은 PC 크롬에서만 가능해요.</DialogTitle>
+          <DialogTitle>일부 기능은 PC 크롬에서만 가능해요.</DialogTitle>
           <DialogDescription>
             네이버 카페와 숲 게시판은 데스크톱 Chrome 브라우저에서만 사용할 수
             있습니다. 해당 기능을 이용하려면 데스크톱 Chrome으로 접속해 주세요.
