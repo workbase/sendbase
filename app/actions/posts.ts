@@ -17,7 +17,7 @@ import {
   imageUrlsFromHtml,
   sanitizeEditorHtml,
 } from "@/lib/posts/content"
-import { optimizePostImage } from "@/lib/posts/images"
+import { optimizePostImage, preparePostHtmlForSoop } from "@/lib/posts/images"
 import { getPostDetail, getPostHistory } from "@/lib/posts/queries"
 import { postFormSchema } from "@/lib/posts/schema"
 import { createAdminClient } from "@/lib/supabase/admin"
@@ -124,6 +124,9 @@ export async function publishPostAction(
   if (!plainText && images.length === 0)
     throw new Error("본문 또는 이미지를 추가해 주세요.")
   validateLimits(parsed.data.destinations, plainText, images)
+  const soopHtml = parsed.data.destinations.includes("soop")
+    ? await preparePostHtmlForSoop(user.id, sanitized)
+    : null
 
   const { postId, html, text, imageUrls } = await persistPost(
     user.id,
@@ -157,7 +160,7 @@ export async function publishPostAction(
               userid: settings.userid ?? "",
               boardId: settings.boardId ?? "",
               subject: parsed.data.title,
-              contentHtml: html,
+              contentHtml: soopHtml ?? html,
               submit: true,
               autoClose: true,
             }
@@ -328,18 +331,18 @@ export async function uploadPostImageAction(formData: FormData) {
   )
   const imageId = randomUUID()
   const basePath = `${user.id}/${new Date().getUTCFullYear()}/${imageId}`
-  const originalPath = `${basePath}.webp`
-  const thumbnailPath = `${basePath}-thumbnail.webp`
+  const originalPath = `${basePath}.${optimized.extension}`
+  const thumbnailPath = `${basePath}-thumbnail.${optimized.extension}`
   const supabase = createAdminClient()
   const bucket = supabase.storage.from("post-media")
   const [originalUpload, thumbnailUpload] = await Promise.all([
     bucket.upload(originalPath, optimized.original, {
-      contentType: "image/webp",
+      contentType: optimized.contentType,
       cacheControl: "31536000",
       upsert: false,
     }),
     bucket.upload(thumbnailPath, optimized.thumbnail, {
-      contentType: "image/webp",
+      contentType: optimized.contentType,
       cacheControl: "31536000",
       upsert: false,
     }),

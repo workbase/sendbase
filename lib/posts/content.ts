@@ -2,7 +2,10 @@ import sanitizeHtml from "sanitize-html"
 
 import type { PostImage } from "@/lib/types"
 
-export function sanitizeEditorHtml(html: string) {
+function sanitizeEditorHtmlWithImageUrls(
+  html: string,
+  imageUrlReplacements?: ReadonlyMap<string, string>
+) {
   return sanitizeHtml(html, {
     allowedTags: ["p", "br", "strong", "b", "em", "i", "u", "s", "a", "img"],
     allowedAttributes: {
@@ -33,8 +36,26 @@ export function sanitizeEditorHtml(html: string) {
         tagName: "a",
         attribs: { ...attribs, target: "_blank", rel: "noopener noreferrer" },
       }),
+      img: (_tagName, attribs) => {
+        const nextAttribs = { ...attribs }
+        const replacement = imageUrlReplacements?.get(attribs.src)
+        if (replacement) nextAttribs.src = replacement
+        if (imageUrlReplacements) delete nextAttribs["data-thumbnail-src"]
+        return { tagName: "img", attribs: nextAttribs }
+      },
     },
   })
+}
+
+export function sanitizeEditorHtml(html: string) {
+  return sanitizeEditorHtmlWithImageUrls(html)
+}
+
+export function replaceEditorImageUrls(
+  html: string,
+  replacements: ReadonlyMap<string, string>
+) {
+  return sanitizeEditorHtmlWithImageUrls(html, replacements)
 }
 
 export function imageMetadataFromHtml(html: string): PostImage[] {
