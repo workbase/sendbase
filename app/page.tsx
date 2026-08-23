@@ -99,7 +99,7 @@ export default function LandingPage() {
         <div className="mx-auto w-full max-w-3xl px-4 sm:px-6">
           <h2
             id="how-it-works"
-            className="max-w-3xl text-3xl leading-tight font-semibold tracking-tight text-balance sm:text-5xl"
+            className="max-w-3xl text-2xl leading-tight font-semibold tracking-tight text-balance sm:text-4xl"
           >
             방송을 볼까 말까 하던 팬도, 자연스럽게 찾아와요.
           </h2>
@@ -133,7 +133,7 @@ export default function LandingPage() {
         <div className="mx-auto w-full max-w-3xl px-4 sm:px-6">
           <h2
             id="focus-title"
-            className="max-w-3xl text-3xl leading-tight font-semibold tracking-tight text-balance sm:text-5xl"
+            className="max-w-3xl text-2xl leading-tight font-semibold tracking-tight text-balance sm:text-4xl"
           >
             공지에 쓰는 시간은 줄이고, 팬을 맞이할 여유는 늘리세요.
           </h2>
@@ -151,7 +151,7 @@ export default function LandingPage() {
         <div className="mx-auto w-full max-w-3xl px-4 sm:px-6">
           <h2
             id="platforms-title"
-            className="max-w-3xl text-3xl leading-tight font-semibold tracking-tight text-balance sm:text-5xl"
+            className="max-w-3xl text-2xl leading-tight font-semibold tracking-tight text-balance sm:text-4xl"
           >
             팬이 이미 보고 있는 곳에서, 방송 소식을 만나요.
           </h2>
