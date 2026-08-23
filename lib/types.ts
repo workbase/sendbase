@@ -74,3 +74,6 @@ export type PublishResult = {
     message: string
   }>
 }
+
+export type PublishPostActionResult =
+  { ok: true; data: PublishResult } | { ok: false; error: string }

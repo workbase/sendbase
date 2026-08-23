@@ -269,6 +269,18 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      create_post_for_publishing: {
+        Args: {
+          p_content_html: string
+          p_content_text: string
+          p_destinations: Database["public"]["Enums"]["publish_platform"][]
+          p_image_metadata: Json
+          p_image_urls: string[]
+          p_title: string
+          p_user_id: string
+        }
+        Returns: string
+      }
       get_dashboard_initial_data: {
         Args: { p_limit?: number; p_now: string; p_token_hash: string }
         Returns: Json

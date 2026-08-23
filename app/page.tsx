@@ -1,4 +1,5 @@
 import Link from "next/link"
+import type { ReactNode } from "react"
 
 import { PlatformLogo } from "@/components/logos/platform-logo"
 import { BrowserSupportGate } from "@/components/landing/browser-support-gate"
@@ -68,10 +69,22 @@ const mockPosts: Array<{
   },
 ]
 
-const faqItems = [
+const faqItems: Array<{ question: string; answer: ReactNode }> = [
+  {
+    question: "센드베이스는 어떤 서비스인가요?",
+    answer: "센드베이스는 방송 공지를 딱 한 번만 작성하고, 5개의 SNS 채널에 한 번에 올릴 수 있는 무료 서비스예요.",
+  },
   {
     question: "센드베이스는 무료인가요?",
     answer: "네, 모든 기능을 무료로 이용할 수 있어요.",
+  },
+  {
+    question: "사용량이나 횟수 제한이 있나요?",
+    answer: "X에는 하루에 공지를 최대 3개까지만 작성할 수 있어요. 이외의 플랫폼에서는 제한 없이 계속 사용할 수 있어요.",
+  },
+   {
+    question: "회원가입이나 인증 절차가 따로 있나요?",
+    answer: "아니요, 로그인 후 바로 시작하실 수 있어요.",
   },
   {
     question: "어떤 채널에 게시할 수 있나요?",
@@ -86,31 +99,44 @@ const faqItems = [
   {
     question: "어떤 기기에서든 이용할 수 있나요?",
     answer:
-      "Threads, X, Discord는 어느 환경에서든 가능하지만, 네이버 카페와 SOOP 게시판은 데스크탑 크롬에서만 가능해요.",
+      "Threads, X, Discord는 어느 환경에서든 가능하지만, 네이버 카페와 SOOP 게시판은 데스크탑 크롬에서만 일괄 발행 대상으로 포함시킬 수 있어요.",
   },
   {
     question: "계정 연결은 안전한가요?",
     answer:
-      "로그인 시 사용되는 치지직, 씨미, SOOP 계정의 경우 연동 시 최소한의 조회 권한만 요청하며, 동의 화면에서 직접 확인하실 수 있어요. X, Threads, Discord 연동 시에는 작성 권한을 요청해요. 모든 연동 권한은 각 플랫폼 계정 설정에서 완전히 제거할 수 있어요.",
+      "로그인 시 사용되는 치지직, 씨미, SOOP 계정의 경우 연동 시 채널 조회 권한만 요청해요. X, Threads, Discord 연동 시에는 작성 권한을 요청해요. 모든 연동 권한은 각 플랫폼 계정 설정에서 완전히 제거할 수 있어요.",
   },
   {
     question: "개인정보를 수집하나요?",
     answer:
-      "아니요, 센드베이스는 어떠한 개인정보도 수집하지 않아요. API 연동은 각 플랫폼에서 공식적으로 제공하는 OAuth 방식으로 제공되며, 이메일, 비밀번호, 이름 등을 전혀 수집하지 않아요.",
-  },
-  {
-    question: "회원가입 절차가 따로 있나요?",
-    answer: "아니요, 로그인 후 바로 시작하실 수 있어요.",
+      "아니요, 센드베이스는 어떠한 개인정보도 수집하지 않아요. API 연동은 각 플랫폼에서 공식적으로 제공하는 OAuth 방식으로 제공되며, 이메일, 비밀번호, 이름 등은 그 어느 곳에서도 요구하거나 사용하지 않아요.",
   },
   {
     question: "각 채널 별 글자 수나 이미지 수 제한 등은 어떻게 되나요?",
     answer:
       "업로드할 채널들을 선택하면, 가장 제한이 엄격한 곳을 기준으로 미리 한도를 알려드리며, 제한을 넘어서 내용이 잘리는 경우를 방지해줘요.",
   },
+ {
+    question: "문의나 버그 신고 등은 어디로 하면 되나요?",
+    answer:
+      "이 페이지 최하단의 '문의 및 오류 신고'를 누르거나, 로그인 후 우측 상단 메뉴를 눌러 문의 메시지를 시작할 수 있어요.",
+  },
   {
     question: "센드베이스는 어디서 운영하나요?",
-    answer:
-      "센드베이스는 익명 크리에이터들을 위한 계약 시스템을 운영하는 '워크베이스'에서 운영 및 무료 제공하고 있어요.",
+    answer: (
+      <>
+        센드베이스는 익명 크리에이터들을 위한 계약 시스템을 운영하는{" "}
+        <a
+          href="https://workbase.im"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="underline underline-offset-4"
+        >
+          워크베이스
+        </a>
+        에서 운영 및 무료 제공하고 있어요.
+      </>
+    ),
   },
 ]
 
@@ -119,7 +145,7 @@ export default async function LandingPage() {
   return (
     <main className="bg-muted">
       <BrowserSupportGate />
-      <div className="fixed top-5 left-5 z-30 text-foreground">
+      <div className="fixed top-5 left-5 z-40 text-foreground">
         <SendbaseLogo className="h-auto w-32" />
       </div>
       <FloatingCta />
@@ -133,7 +159,7 @@ export default async function LandingPage() {
         </h1>
         <div
           aria-hidden="true"
-          className="pointer-events-none absolute inset-x-0 top-0 z-10 h-24 bg-linear-to-b from-muted to-transparent"
+          className="pointer-events-none fixed inset-x-0 top-0 z-30 h-24 bg-linear-to-b from-muted to-transparent"
         />
         <div
           aria-hidden="true"
@@ -151,15 +177,15 @@ export default async function LandingPage() {
         </div>
       </section>
 
-      <section aria-label="자주 묻는 질문" className="bg-muted py-24 sm:py-32">
+      <section aria-label="자주 묻는 질문" className="bg-muted py-12 sm:py-16">
         <div className="mx-auto w-full max-w-3xl px-4 sm:px-6">
-          <dl className="grid sm:grid-cols-2 sm:gap-x-6">
+          <dl className="grid gap-4 sm:grid-cols-2">
             {faqItems.map((item) => (
-              <div key={item.question} className="py-6 sm:py-7">
+              <div key={item.question}>
                 <dt className="text-sm font-semibold tracking-tight">
                   {item.question}
                 </dt>
-                <dd className="mt-3 text-sm leading-6 text-muted-foreground">
+                <dd className="mt-1.5 text-sm leading-6 text-muted-foreground">
                   {item.answer}
                 </dd>
               </div>

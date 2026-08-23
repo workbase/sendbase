@@ -37,7 +37,7 @@ export function FloatingCta() {
 
   return (
     <div
-      className={`fixed top-5 right-5 z-20 transition-opacity duration-200 ${
+      className={`fixed top-3 right-3 z-40 transition-opacity duration-200 ${
         isVisible ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0"
       }`}
     >

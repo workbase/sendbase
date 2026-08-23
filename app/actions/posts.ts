@@ -24,10 +24,23 @@ import { createAdminClient } from "@/lib/supabase/admin"
 import type {
   ExtensionPublishJob,
   PublishPlatform,
+  PublishPostActionResult,
   PublishResult,
 } from "@/lib/types"
 
 const historyCursorSchema = z.string().datetime({ offset: true }).optional()
+const X_DAILY_POST_LIMIT_MESSAGE =
+  "X에는 계정당 하루 최대 3개의 공지만 게시할 수 있습니다."
+
+type PersistPostResult =
+  | { ok: false; error: string }
+  | {
+      ok: true
+      postId: string
+      html: string
+      text: string
+      imageUrls: string[]
+    }
 
 export async function getOlderPostsAction(before?: string) {
   const user = await requireUser()
@@ -71,47 +84,35 @@ function validateLimits(
 async function persistPost(
   userId: string,
   input: z.infer<typeof postFormSchema>
-) {
+): Promise<PersistPostResult> {
   const html = sanitizeEditorHtml(input.contentHtml)
   const text = htmlToPlainText(html)
   const imageUrls = imageUrlsFromHtml(html)
   const imageMetadata = imageMetadataFromHtml(html)
   const supabase = createAdminClient()
-  const values = {
-    user_id: userId,
-    title: input.title,
-    content_html: html,
-    content_text: text,
-    image_urls: imageUrls,
-    image_metadata: imageMetadata,
-    status: "publishing" as const,
-    updated_at: new Date().toISOString(),
+  const { data, error } = await supabase.rpc("create_post_for_publishing", {
+    p_user_id: userId,
+    p_title: input.title,
+    p_content_html: html,
+    p_content_text: text,
+    p_image_urls: imageUrls,
+    p_image_metadata: imageMetadata,
+    p_destinations: input.destinations,
+  })
+  if (error) {
+    if (error.message === X_DAILY_POST_LIMIT_MESSAGE) {
+      return { ok: false, error: X_DAILY_POST_LIMIT_MESSAGE }
+    }
+    throw new Error(`게시물을 저장하지 못했습니다: ${error.message}`)
   }
 
-  const { data, error } = await supabase
-    .from("posts")
-    .insert(values)
-    .select("id")
-    .single()
-  if (error) throw new Error(`게시물을 저장하지 못했습니다: ${error.message}`)
-  const postId = data.id as string
-
-  const { error: destinationError } = await supabase
-    .from("post_destinations")
-    .insert(
-      input.destinations.map((platform) => ({
-        post_id: postId,
-        platform,
-        status: "pending",
-      }))
-    )
-  if (destinationError) throw new Error(destinationError.message)
-  return { postId, html, text, imageUrls }
+  const postId = data as string
+  return { ok: true, postId, html, text, imageUrls }
 }
 
 export async function publishPostAction(
   input: unknown
-): Promise<PublishResult> {
+): Promise<PublishPostActionResult> {
   const user = await requireUser()
   const parsed = postFormSchema.safeParse(input)
   if (!parsed.success)
@@ -128,10 +129,12 @@ export async function publishPostAction(
     ? await preparePostHtmlForSoop(user.id, sanitized)
     : null
 
-  const { postId, html, text, imageUrls } = await persistPost(
-    user.id,
-    parsed.data
-  )
+  const persistedPost = await persistPost(user.id, parsed.data)
+  if (!persistedPost.ok) {
+    return { ok: false, error: persistedPost.error }
+  }
+
+  const { postId, html, text, imageUrls } = persistedPost
   const supabase = createAdminClient()
   const extensionJobs: ExtensionPublishJob[] = []
   const results: PublishResult["results"] = []
@@ -239,7 +242,7 @@ export async function publishPostAction(
 
   if (extensionJobs.length === 0) await finalizePost(postId)
   revalidatePath("/dashboard")
-  return { postId, extensionJobs, results }
+  return { ok: true, data: { postId, extensionJobs, results } }
 }
 
 const extensionResultSchema = z.object({

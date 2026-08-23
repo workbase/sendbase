@@ -557,7 +557,13 @@ export function PostEditor({
           return
         }
 
-        const result = await publishPostAction(values)
+        const actionResult = await publishPostAction(values)
+        if (!actionResult.ok) {
+          toast.error(actionResult.error)
+          return
+        }
+
+        const result = actionResult.data
         if (result.extensionJobs.length > 0) {
           await Promise.all(
             result.extensionJobs.map(async (job) => {
