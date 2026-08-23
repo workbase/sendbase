@@ -54,6 +54,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover"
 import { getStoredExtensionInstallation } from "@/lib/browser/extension-installation"
+import { landingLoginRequestedEvent } from "@/lib/landing/events"
 import { cn } from "@/lib/utils"
 import { countCharacters, platformLimits } from "@/lib/platforms/limits"
 import {
@@ -324,6 +325,9 @@ export function PostEditor({
     getServerLoginErrorSnapshot
   )
   const effectiveLoginError = loginError ?? urlLoginError
+  const [isLandingLoginOpen, setIsLandingLoginOpen] = useState(
+    Boolean(effectiveLoginError)
+  )
   const [isPublishing, startPublishing] = useTransition()
   const imageInputRef = useRef<HTMLInputElement>(null)
   const editorContainerRef = useRef<HTMLDivElement>(null)
@@ -336,6 +340,15 @@ export function PostEditor({
       }
     }
   }, [])
+
+  useEffect(() => {
+    if (mode !== "landing") return
+
+    const openLogin = () => setIsLandingLoginOpen(true)
+    window.addEventListener(landingLoginRequestedEvent, openLogin)
+
+    return () => window.removeEventListener(landingLoginRequestedEvent, openLogin)
+  }, [mode])
 
   const {
     register,
@@ -792,7 +805,10 @@ export function PostEditor({
             )}
           </div>
           {mode === "landing" ? (
-            <Popover defaultOpen={Boolean(effectiveLoginError)}>
+            <Popover
+              open={isLandingLoginOpen || Boolean(effectiveLoginError)}
+              onOpenChange={setIsLandingLoginOpen}
+            >
               <PopoverTrigger render={<Button className="h-10 shadow-sm" />}>
                 무료로 시작하기
               </PopoverTrigger>
