@@ -48,7 +48,7 @@ export function FloatingCta() {
         <PopoverContent align="end" side="bottom" sideOffset={10}>
           <PopoverHeader className="px-1 pt-1 pb-0.5">
             <PopoverTitle>센드베이스 시작하기</PopoverTitle>
-            <PopoverDescription>별도의 회원가입이 없어요.</PopoverDescription>
+            <PopoverDescription>회원가입 없이 바로 시작</PopoverDescription>
           </PopoverHeader>
           <div className="flex flex-col gap-1.5">
             {loginProviders.map((provider) => (

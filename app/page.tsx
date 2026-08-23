@@ -32,39 +32,30 @@ const mockPosts: Array<{
   tilt: string
 }> = [
   {
-    id: "summer-live",
-    title: "8월 라이브 일정 안내",
-    date: "2026. 8. 12. 오후 7:30",
-    content:
-      "이번 주 금요일 저녁 8시에 시작해요. 새로운 콘텐츠와 함께 소소한 선물도 준비했습니다.",
-    platforms: ["threads", "x"],
-    tilt: "-rotate-1",
-  },
-  {
     id: "community-event",
-    title: "커뮤니티 이벤트를 열었어요 🎉",
+    title: "오늘 컴퓨터가 고장나서 방송 쉬어가야 할 것 같아요ㅠ",
     date: "2026. 8. 15. 오후 2:10",
     content:
-      "여러분의 좋아하는 장면을 공유해 주세요. 채널별 베스트 출품작은 다음 방송에서 소개할게요!",
+      "갑자기 작동을 안하네요ㅠ 기사님 바로 불렀는데 혹시 일찍 고쳐지면 켜보도록 하겠습니다..!",
     platforms: ["threads", "discord", "naver_cafe", "soop"],
     tilt: "rotate-1",
   },
   {
     id: "highlight-clip",
-    title: "지난 방송 하이라이트를 공개했어요",
+    title: "8월 방송시간표임니다!!",
     date: "2026. 8. 16. 오전 11:00",
     content:
-      "가장 재미있었던 순간들을 짧은 영상으로 모아봤어요. 댓글로 가장 좋았던 장면도 알려 주세요!",
-    platforms: ["discord", "naver_cafe"],
+      "별다른 일 없으면 시간표대로 할 것 같아용 오늘은 쉬는날!",
+    platforms: ["discord", "naver_cafe", "threads","x"],
     tilt: "-rotate-1",
   },
   {
     id: "weekend-notice",
-    title: "주말 콘텐츠 안내",
+    title: "이따가 봐용",
     date: "2026. 8. 17. 오후 4:20",
     content:
-      "이번 주말에는 함께 참여할 수 있는 새로운 콘텐츠를 준비하고 있어요. 곧 자세한 소식을 전할게요.",
-    platforms: ["soop", "threads"],
+      "오늘 9시쯤에 켜서 시참 컨텐츠 할 예정! 방송에서 봅시당~~",
+    platforms: ["soop", "discord", "naver_cafe","x"],
     tilt: "rotate-1",
   },
 ]
@@ -199,7 +190,7 @@ export default async function LandingPage() {
           <Link href="/" aria-label="Sendbase 홈">
             <SendbaseLogo className="h-auto w-24 text-foreground" />
           </Link>
-          <div className="flex flex-wrap items-center gap-4 sm:gap-6">
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3">
             <Button
               render={<Link href="/terms" />}
               nativeButton={false}

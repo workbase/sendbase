@@ -51,7 +51,7 @@ export default async function TermsPage() {
           <Link href="/" aria-label="Sendbase 홈">
             <SendbaseLogo className="h-auto w-24 text-foreground" />
           </Link>
-          <div className="flex flex-wrap items-center gap-4 sm:gap-6">
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3">
             <Button
               render={<Link href="/terms" />}
               nativeButton={false}

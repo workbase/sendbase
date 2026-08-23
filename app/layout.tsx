@@ -6,10 +6,10 @@ import { ThemeProvider } from "@/components/theme-provider"
 
 export const metadata: Metadata = {
   title: {
-    default: "센드베이스 | 시청자의 피드에 먼저 다가가는 방법",
+    default: "센드베이스 | 다채널 방송 공지 일괄 작성",
     template: "%s · 센드베이스",
   },
-  description: "방송 공지를 모든 채널에 한 번에 게시하세요. 완전 무료.",
+  description: "열성 팬들만 보는 곳에 공지를 쓰는 대신, 지나가던 잠재 시청자들의 눈길을 사로잡으세요.",
   openGraph: {
     images: [
       {
