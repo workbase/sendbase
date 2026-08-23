@@ -50,6 +50,9 @@ importers:
       cmdk:
         specifier: ^1.1.1
         version: 1.1.1(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
+      crisp-sdk-web:
+        specifier: ^1.2.0
+        version: 1.2.0
       date-fns:
         specifier: ^4.4.0
         version: 4.4.0
@@ -1722,6 +1725,9 @@ packages:
     peerDependenciesMeta:
       typescript:
         optional: true
+
+  crisp-sdk-web@1.2.0:
+    resolution: {integrity: sha512-R7hMEcm8vAOeJtx0odVtXfTQzgwObHCN+1affxDp82ajhm31fjsx6n/ruBnEHgESKv8719BBX5y+vQQKayEO2Q==}
 
   cross-spawn@7.0.6:
     resolution: {integrity: sha512-uV2QOWP2nWzsy2aMp8aRibhi9dlzF5Hgh5SHaB9OiTGEyDTiJJyx0uy51QXdyWbtAHNua4XJzUKca3OzKUd3vA==}
@@ -5386,6 +5392,8 @@ snapshots:
       parse-json: 5.2.0
     optionalDependencies:
       typescript: 5.9.3
+
+  crisp-sdk-web@1.2.0: {}
 
   cross-spawn@7.0.6:
     dependencies:

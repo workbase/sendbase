@@ -4,10 +4,12 @@ import { PlatformLogo } from "@/components/logos/platform-logo"
 import { BrowserSupportGate } from "@/components/landing/browser-support-gate"
 import { FloatingCta } from "@/components/landing/floating-cta"
 import { SendbaseLogo } from "@/components/logos/sendbase-logo"
+import { CrispSupportButton } from "@/components/support/crisp-support-button"
 import { ThemeSelector } from "@/components/settings/theme-selector"
 import { Button } from "@/components/ui/button"
 import { PostEditor } from "@/components/workspace/post-editor"
 import { platformLimits } from "@/lib/platforms/limits"
+import { getCurrentUser } from "@/lib/auth/session"
 import type { PlatformConnection, PublishPlatform } from "@/lib/types"
 import { publishPlatforms } from "@/lib/types"
 
@@ -73,39 +75,47 @@ const faqItems = [
   },
   {
     question: "어떤 채널에 게시할 수 있나요?",
-    answer: "Threads, X, Discord, 네이버 카페, SOOP 게시판에 공지를 게시할 수 있어요.",
+    answer:
+      "Threads, X, Discord, 네이버 카페, SOOP 게시판에 공지를 게시할 수 있어요.",
   },
   {
     question: "한 번에 여러 채널을 선택할 수 있나요?",
-    answer: "네, 공지를 작성한 뒤 원하는 채널을 여러 개 선택하면 같은 내용을 한 번에 전할 수 있어요.",
+    answer:
+      "네, 공지를 작성한 뒤 원하는 채널을 여러 개 선택하면 같은 내용을 한 번에 전할 수 있어요.",
   },
   {
     question: "어떤 기기에서든 이용할 수 있나요?",
-    answer: "Threads, X, Discord는 어느 환경에서든 가능하지만, 네이버 카페와 SOOP 게시판은 데스크탑 크롬에서만 가능해요.",
+    answer:
+      "Threads, X, Discord는 어느 환경에서든 가능하지만, 네이버 카페와 SOOP 게시판은 데스크탑 크롬에서만 가능해요.",
   },
   {
     question: "계정 연결은 안전한가요?",
-    answer: "로그인 시 사용되는 치지직, 씨미, SOOP 계정의 경우 연동 시 최소한의 조회 권한만 요청하며, 동의 화면에서 직접 확인하실 수 있어요. X, Threads, Discord 연동 시에는 작성 권한을 요청해요. 모든 연동 권한은 각 플랫폼 계정 설정에서 완전히 제거할 수 있어요.",
+    answer:
+      "로그인 시 사용되는 치지직, 씨미, SOOP 계정의 경우 연동 시 최소한의 조회 권한만 요청하며, 동의 화면에서 직접 확인하실 수 있어요. X, Threads, Discord 연동 시에는 작성 권한을 요청해요. 모든 연동 권한은 각 플랫폼 계정 설정에서 완전히 제거할 수 있어요.",
   },
-    {
+  {
     question: "개인정보를 수집하나요?",
-    answer: "아니요, 센드베이스는 어떠한 개인정보도 수집하지 않아요. API 연동은 각 플랫폼에서 공식적으로 제공하는 OAuth 방식으로 제공되며, 이메일, 비밀번호, 이름 등을 전혀 수집하지 않아요.",
+    answer:
+      "아니요, 센드베이스는 어떠한 개인정보도 수집하지 않아요. API 연동은 각 플랫폼에서 공식적으로 제공하는 OAuth 방식으로 제공되며, 이메일, 비밀번호, 이름 등을 전혀 수집하지 않아요.",
   },
-    {
+  {
     question: "회원가입 절차가 따로 있나요?",
     answer: "아니요, 로그인 후 바로 시작하실 수 있어요.",
   },
-    {
+  {
     question: "각 채널 별 글자 수나 이미지 수 제한 등은 어떻게 되나요?",
-    answer: "업로드할 채널들을 선택하면, 가장 제한이 엄격한 곳을 기준으로 미리 한도를 알려드리며, 제한을 넘어서 내용이 잘리는 경우를 방지해줘요.",
+    answer:
+      "업로드할 채널들을 선택하면, 가장 제한이 엄격한 곳을 기준으로 미리 한도를 알려드리며, 제한을 넘어서 내용이 잘리는 경우를 방지해줘요.",
   },
-    {
+  {
     question: "센드베이스는 어디서 운영하나요?",
-    answer: "센드베이스는 익명 크리에이터들을 위한 계약 시스템을 운영하는 '워크베이스'에서 운영 및 무료 제공하고 있어요.",
+    answer:
+      "센드베이스는 익명 크리에이터들을 위한 계약 시스템을 운영하는 '워크베이스'에서 운영 및 무료 제공하고 있어요.",
   },
 ]
 
-export default function LandingPage() {
+export default async function LandingPage() {
+  const user = await getCurrentUser()
   return (
     <main className="bg-muted">
       <BrowserSupportGate />
@@ -146,8 +156,12 @@ export default function LandingPage() {
           <dl className="grid sm:grid-cols-2 sm:gap-x-6">
             {faqItems.map((item) => (
               <div key={item.question} className="py-6 sm:py-7">
-                <dt className="text-sm font-semibold tracking-tight">{item.question}</dt>
-                <dd className="mt-3 text-sm leading-6 text-muted-foreground">{item.answer}</dd>
+                <dt className="text-sm font-semibold tracking-tight">
+                  {item.question}
+                </dt>
+                <dd className="mt-3 text-sm leading-6 text-muted-foreground">
+                  {item.answer}
+                </dd>
               </div>
             ))}
           </dl>
@@ -160,12 +174,28 @@ export default function LandingPage() {
             <SendbaseLogo className="h-auto w-24 text-foreground" />
           </Link>
           <div className="flex flex-wrap items-center gap-4 sm:gap-6">
-            <Button render={<Link href="/terms" />} nativeButton={false} variant="link" size="sm">
+            <Button
+              render={<Link href="/terms" />}
+              nativeButton={false}
+              variant="link"
+              size="sm"
+            >
               이용 약관
             </Button>
-            <Button render={<Link href="/terms?tab=privacy" />} nativeButton={false} variant="link" size="sm">
+            <Button
+              render={<Link href="/terms?tab=privacy" />}
+              nativeButton={false}
+              variant="link"
+              size="sm"
+            >
               개인정보처리방침
             </Button>
+            <CrispSupportButton
+              user={user}
+              variant="link"
+              size="sm"
+              showIcon={false}
+            />
             <ThemeSelector />
           </div>
         </div>

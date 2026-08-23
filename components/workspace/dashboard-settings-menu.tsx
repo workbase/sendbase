@@ -1,17 +1,25 @@
 "use client"
 
 import Link from "next/link"
-import { EllipsisVerticalIcon, FileTextIcon, LogOutIcon, Settings2Icon } from "lucide-react"
+import {
+  EllipsisVerticalIcon,
+  FileTextIcon,
+  LogOutIcon,
+  Settings2Icon,
+} from "lucide-react"
 
 import { logoutAction } from "@/app/actions/auth"
 import { Button } from "@/components/ui/button"
+import { CrispSupportButton } from "@/components/support/crisp-support-button"
+import { clearCrispSession } from "@/lib/support/crisp"
+import type { AppUser } from "@/lib/types"
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover"
 
-export function DashboardSettingsMenu() {
+export function DashboardSettingsMenu({ user }: { user: AppUser }) {
   return (
     <Popover>
       <PopoverTrigger
@@ -45,8 +53,14 @@ export function DashboardSettingsMenu() {
           <FileTextIcon />
           이용 약관
         </Button>
+        <CrispSupportButton user={user} className="w-full justify-start" />
         <form action={logoutAction}>
-          <Button type="submit" variant="ghost" className="w-full justify-start">
+          <Button
+            type="submit"
+            variant="ghost"
+            className="w-full justify-start"
+            onClick={() => void clearCrispSession()}
+          >
             <LogOutIcon />
             로그아웃
           </Button>

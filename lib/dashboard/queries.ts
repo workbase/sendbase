@@ -32,7 +32,8 @@ function parseDashboardData(value: unknown): DashboardInitialData | null {
   if (
     typeof user.id !== "string" ||
     typeof user.display_name !== "string" ||
-    (user.avatar_url !== null && typeof user.avatar_url !== "string")
+    (user.avatar_url !== null && typeof user.avatar_url !== "string") ||
+    typeof user.crisp_session_token !== "string"
   ) {
     return null
   }
@@ -85,6 +86,7 @@ function parseDashboardData(value: unknown): DashboardInitialData | null {
       id: user.id,
       displayName: user.display_name,
       avatarUrl: user.avatar_url,
+      crispSessionToken: user.crisp_session_token,
       loginProviders: parsedLoginProviders,
     },
     connections,

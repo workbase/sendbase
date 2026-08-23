@@ -10,7 +10,7 @@ import { getDashboardInitialData } from "@/lib/dashboard/queries"
 export default async function DashboardPage() {
   const dashboard = await getDashboardInitialData()
   if (!dashboard) redirect("/auth/clear-session")
-  const { posts, connections } = dashboard
+  const { posts, connections, user } = dashboard
 
   return (
     <PostHistory initialPosts={posts}>
@@ -26,7 +26,7 @@ export default async function DashboardPage() {
         <SendbaseLogo className="h-auto w-32" />
       </Link>
       <div className="fixed top-3 right-3 z-10">
-        <DashboardSettingsMenu />
+        <DashboardSettingsMenu user={user} />
       </div>
       <DeferredPostEditor connections={connections} />
     </PostHistory>

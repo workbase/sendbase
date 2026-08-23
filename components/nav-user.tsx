@@ -4,6 +4,7 @@ import Link from "next/link"
 import { ChevronsUpDownIcon, LogOutIcon, Settings2Icon } from "lucide-react"
 
 import { logoutAction } from "@/app/actions/auth"
+import { clearCrispSession } from "@/lib/support/crisp"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import {
   DropdownMenu,
@@ -79,7 +80,14 @@ export function NavUser({
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
             <form action={logoutAction}>
-              <DropdownMenuItem render={<button type="submit" />}>
+              <DropdownMenuItem
+                render={
+                  <button
+                    type="submit"
+                    onClick={() => void clearCrispSession()}
+                  />
+                }
+              >
                 <LogOutIcon />
                 로그아웃
               </DropdownMenuItem>

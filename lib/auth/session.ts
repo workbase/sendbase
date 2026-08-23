@@ -54,7 +54,7 @@ export const getCurrentUser = cache(async (): Promise<AppUser | null> => {
   const { data, error } = await supabase
     .from("app_sessions")
     .select(
-      "user_id, expires_at, app_users(id, display_name, avatar_url, login_accounts(provider))"
+      "user_id, expires_at, app_users(id, display_name, avatar_url, crisp_session_token, login_accounts(provider))"
     )
     .eq("token_hash", hashToken(token))
     .gt("expires_at", new Date().toISOString())
@@ -65,6 +65,7 @@ export const getCurrentUser = cache(async (): Promise<AppUser | null> => {
     id: string
     display_name: string
     avatar_url: string | null
+    crisp_session_token: string
     login_accounts: Array<{ provider: string }>
   } | null
   if (!joined) return null
@@ -79,6 +80,7 @@ export const getCurrentUser = cache(async (): Promise<AppUser | null> => {
     id: joined.id,
     displayName: joined.display_name,
     avatarUrl: joined.avatar_url,
+    crispSessionToken: joined.crisp_session_token,
     loginProviders,
   }
 })

@@ -13,6 +13,7 @@ export type AppUser = {
   id: string
   displayName: string
   avatarUrl: string | null
+  crispSessionToken: string
   loginProviders: LoginProvider[]
 }
 
