@@ -168,6 +168,9 @@
   }
   body {
     @apply bg-background text-foreground;
+    line-break: strict;
+    overflow-wrap: break-word;
+    word-break: keep-all;
   }
   button:not(:disabled),
   [role="button"]:not(:disabled) {

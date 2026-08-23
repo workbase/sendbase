@@ -3,8 +3,8 @@ import Link from "next/link"
 
 import { SendbaseLogo } from "@/components/logos/sendbase-logo"
 import { CopyContact } from "@/components/terms/copy-contact"
+import { TermsTabs } from "@/components/terms/terms-tabs"
 import { Toaster } from "@/components/ui/sonner"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
   Table,
   TableBody,
@@ -39,18 +39,7 @@ export default function TermsPage() {
             시행일: {effectiveDate}
           </p>
         </header>
-        <Tabs defaultValue="terms">
-          <TabsList variant="line" aria-label="약관 문서">
-            <TabsTrigger value="terms">이용 약관</TabsTrigger>
-            <TabsTrigger value="privacy">개인정보처리방침</TabsTrigger>
-          </TabsList>
-          <TabsContent value="terms" className="pt-8">
-            <TermsContent />
-          </TabsContent>
-          <TabsContent value="privacy" className="pt-8">
-            <PrivacyContent />
-          </TabsContent>
-        </Tabs>
+        <TermsTabs terms={<TermsContent />} privacy={<PrivacyContent />} />
       </div>
       <Toaster />
     </main>

@@ -800,7 +800,7 @@ export function PostEditor({
                 <PopoverHeader className="px-1 pt-1 pb-0.5">
                   <PopoverTitle>센드베이스 시작하기</PopoverTitle>
                   <PopoverDescription>
-                    로그인과 회원가입은 하나로 연결됩니다.
+                    별도의 회원가입이 없어요.
                   </PopoverDescription>
                 </PopoverHeader>
                 {effectiveLoginError ? (

@@ -1,6 +1,7 @@
 import { PlatformLogo } from "@/components/logos/platform-logo"
 import { BrowserSupportGate } from "@/components/landing/browser-support-gate"
 import { SendbaseLogo } from "@/components/logos/sendbase-logo"
+import { ThemeSelector } from "@/components/settings/theme-selector"
 import { PostEditor } from "@/components/workspace/post-editor"
 import { platformLimits } from "@/lib/platforms/limits"
 import type { PlatformConnection, PublishPlatform } from "@/lib/types"
@@ -93,25 +94,110 @@ export default function LandingPage() {
 
       <section
         aria-labelledby="how-it-works"
-        className="bg-background px-5 py-24 sm:px-8 sm:py-32"
+        className="bg-background py-24 sm:py-32"
       >
-        <div className="mx-auto max-w-3xl">
-          <p className="text-sm font-medium text-muted-foreground">
-            한 번의 작성, 여러 곳의 도착
-          </p>
+        <div className="mx-auto w-full max-w-3xl px-4 sm:px-6">
           <h2
             id="how-it-works"
-            className="mt-3 max-w-2xl text-3xl leading-tight font-semibold tracking-tight text-balance sm:text-4xl"
+            className="max-w-3xl text-3xl leading-tight font-semibold tracking-tight text-balance sm:text-5xl"
           >
-            소식을 쓰고, 채널을 고르고, 한 번에 전하세요.
+            방송을 볼까 말까 하던 팬도, 자연스럽게 찾아와요.
           </h2>
-          <p className="mt-5 max-w-xl text-base leading-7 text-muted-foreground">
-            플랫폼마다 반복했던 작성과 게시를 센드베이스 하나로 줄입니다. 최대
-            글자 수부터 이전 게시 기록까지 한 화면에서 확인하세요.
+          <p className="mt-5 max-w-2xl text-base leading-7 text-muted-foreground sm:text-lg">
+            공지를 팬들이 평소 머무는 곳에 전해 보세요. 알림을 꺼 둔 시청자와
+            아직 커뮤니티에 들어오지 않은 팬에게도, 오늘 방송에 함께할 이유를
+            건넬 수 있어요.
+          </p>
+
+          <ol className="mt-16 grid gap-8 border-y py-8 sm:grid-cols-3 sm:gap-0">
+            <FlowStep
+              title="기억에 남는 한마디를 써요"
+              description="방송 시간과 함께 기다릴 만한 포인트를 전하면, 팬들이 망설임 대신 기대를 품고 찾아옵니다."
+            />
+            <FlowStep
+              title="팬이 있는 곳을 골라요"
+              description="어디서 소식을 보든 빠지는 팬이 없도록, 익숙한 채널마다 같은 초대장을 전할 수 있어요."
+            />
+            <FlowStep
+              title="방송을 기다리는 마음을 모아요"
+              description="여러 곳에 따로 알리느라 지치지 않고, 더 많은 팬과 방송에서 만날 준비에 집중하세요."
+            />
+          </ol>
+        </div>
+      </section>
+
+      <section
+        aria-labelledby="focus-title"
+        className="bg-muted py-24 sm:py-32"
+      >
+        <div className="mx-auto w-full max-w-3xl px-4 sm:px-6">
+          <h2
+            id="focus-title"
+            className="max-w-3xl text-3xl leading-tight font-semibold tracking-tight text-balance sm:text-5xl"
+          >
+            공지에 쓰는 시간은 줄이고, 팬을 맞이할 여유는 늘리세요.
+          </h2>
+          <p className="mt-5 max-w-2xl text-base leading-7 text-muted-foreground sm:text-lg">
+            같은 소식을 여러 번 옮겨 적지 않아도 돼요. 생긴 시간만큼 방송을 더
+            재미있게 준비하고, 오랜만에 찾아온 팬에게도 반갑게 인사할 수 있습니다.
           </p>
         </div>
       </section>
+
+      <section
+        aria-labelledby="platforms-title"
+        className="bg-background py-24 sm:py-32"
+      >
+        <div className="mx-auto w-full max-w-3xl px-4 sm:px-6">
+          <h2
+            id="platforms-title"
+            className="max-w-3xl text-3xl leading-tight font-semibold tracking-tight text-balance sm:text-5xl"
+          >
+            팬이 이미 보고 있는 곳에서, 방송 소식을 만나요.
+          </h2>
+          <p className="mt-5 max-w-2xl text-base leading-7 text-muted-foreground sm:text-lg">
+            팬마다 자주 찾는 채널은 달라도 괜찮아요. 더 많은 사람이 방송을
+            발견하고, 오늘은 함께해 볼까 하는 마음으로 들어올 수 있도록 전합니다.
+          </p>
+          <ul className="mt-12 border-t border-l">
+            {publishPlatforms.map((platform) => (
+              <li
+                key={platform}
+                className="flex min-h-16 items-center gap-3 border-r border-b px-5 text-sm font-medium sm:px-6 sm:text-base"
+              >
+                <PlatformLogo platform={platform} className="size-5 shrink-0" />
+                {platformLimits[platform].label}
+              </li>
+            ))}
+          </ul>
+        </div>
+      </section>
+
+      <footer className="border-t bg-background py-8">
+        <div className="mx-auto flex w-full max-w-3xl flex-col gap-5 px-4 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between sm:px-6">
+          <SendbaseLogo className="h-auto w-24 text-foreground" />
+          <div className="flex flex-wrap items-center gap-4 sm:gap-6">
+            <p>한 번의 작성으로, 모든 커뮤니티에.</p>
+            <ThemeSelector />
+          </div>
+        </div>
+      </footer>
     </main>
+  )
+}
+
+function FlowStep({
+  title,
+  description,
+}: {
+  title: string
+  description: string
+}) {
+  return (
+    <li className="relative pr-8 last:pr-0 sm:border-r sm:px-8 sm:first:pl-0 sm:last:border-r-0 sm:last:pr-0">
+      <h3 className="text-xl font-semibold tracking-tight">{title}</h3>
+      <p className="mt-3 text-sm leading-6 text-muted-foreground">{description}</p>
+    </li>
   )
 }
 
