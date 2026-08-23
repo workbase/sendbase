@@ -1,9 +1,8 @@
 import Link from "next/link"
 import { redirect } from "next/navigation"
-import { Settings2Icon } from "lucide-react"
 
 import { SendbaseLogo } from "@/components/logos/sendbase-logo"
-import { Button } from "@/components/ui/button"
+import { DashboardSettingsMenu } from "@/components/workspace/dashboard-settings-menu"
 import { DeferredPostEditor } from "@/components/workspace/deferred-post-editor"
 import { PostHistory } from "@/components/workspace/post-history"
 import { getDashboardInitialData } from "@/lib/dashboard/queries"
@@ -26,16 +25,9 @@ export default async function DashboardPage() {
       >
         <SendbaseLogo className="h-auto w-32" />
       </Link>
-      <Button
-        render={<Link href="/settings" />}
-        nativeButton={false}
-        variant="secondary"
-        className="fixed top-3 right-3 z-10 size-10"
-        aria-label="설정"
-        title="설정"
-      >
-        <Settings2Icon />
-      </Button>
+      <div className="fixed top-3 right-3 z-10">
+        <DashboardSettingsMenu />
+      </div>
       <DeferredPostEditor connections={connections} />
     </PostHistory>
   )

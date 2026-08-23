@@ -143,7 +143,7 @@ export function SettingsForm({
   })
 
   return (
-    <div className="mx-auto w-full max-w-3xl space-y-6 px-4 py-8 sm:px-6 sm:py-10">
+    <div className="mx-auto w-full max-w-3xl space-y-6 px-4 pt-24 pb-8 sm:px-6 sm:pt-28 sm:pb-10">
       <div className="space-y-12">
         <Button
           render={<Link href="/dashboard" />}

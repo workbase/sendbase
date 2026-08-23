@@ -216,7 +216,11 @@ export async function publishPostAction(
         })
         .eq("post_id", postId)
         .eq("platform", platform)
-      results.push({ platform, ok: true, message: "게시되었습니다." })
+      results.push({
+        platform,
+        ok: true,
+        message: published.warning ?? "게시되었습니다.",
+      })
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "게시하지 못했습니다."

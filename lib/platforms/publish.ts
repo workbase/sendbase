@@ -9,6 +9,12 @@ type PublishInput = {
   imageUrls: string[]
 }
 
+type PublishOutput = {
+  id: string
+  url: string | null
+  warning?: string
+}
+
 type ConnectionRecord = {
   id: string
   externalAccountId: string | null
@@ -22,6 +28,7 @@ const THREADS_CONTAINER_POLL_DELAYS_MS = [
   1_000, 1_500, 2_500, 4_000, 6_000, 8_000,
 ]
 const THREADS_PUBLISH_RETRY_DELAYS_MS = [1_000, 2_000, 4_000]
+const THREADS_PERMALINK_RETRY_DELAYS_MS = [500, 1_000, 2_000, 4_000]
 
 class PlatformApiError extends Error {
   readonly apiCode: number | null
@@ -326,6 +333,58 @@ async function publishThreadsContainer(
   throw new Error("Threads 게시 요청을 완료하지 못했습니다.")
 }
 
+async function getThreadsPermalink(postId: string, token: string) {
+  for (
+    let attempt = 0;
+    attempt <= THREADS_PERMALINK_RETRY_DELAYS_MS.length;
+    attempt += 1
+  ) {
+    const url = new URL(`https://graph.threads.net/v1.0/${postId}`)
+    url.searchParams.set("fields", "id,permalink")
+    url.searchParams.set("access_token", token)
+
+    let result: Record<string, unknown>
+    try {
+      result = await responseJson(
+        await fetch(url, { cache: "no-store" }),
+        "threads",
+        "get-permalink"
+      )
+    } catch (error) {
+      const delay = THREADS_PERMALINK_RETRY_DELAYS_MS[attempt]
+      if (!isThreadsMediaNotFound(error) || delay === undefined) throw error
+      await wait(delay)
+      continue
+    }
+
+    const permalink = stringValue(result, "permalink")
+    if (permalink) return permalink
+
+    const delay = THREADS_PERMALINK_RETRY_DELAYS_MS[attempt]
+    if (delay === undefined) {
+      throw new Error("Threads 게시물 링크를 가져오지 못했습니다.")
+    }
+    await wait(delay)
+  }
+
+  throw new Error("Threads 게시물 링크를 가져오지 못했습니다.")
+}
+
+async function threadsPublishOutput(
+  id: string,
+  token: string
+): Promise<PublishOutput> {
+  try {
+    return { id, url: await getThreadsPermalink(id, token) }
+  } catch {
+    return {
+      id,
+      url: null,
+      warning: "게시되었지만 Threads 게시물 링크를 가져오지 못했습니다.",
+    }
+  }
+}
+
 async function publishThreads(input: PublishInput) {
   const connection = await getConnection(input.userId, "threads")
   if (!connection.accessToken || !connection.externalAccountId) {
@@ -340,7 +399,7 @@ async function publishThreads(input: PublishInput) {
       text: input.text,
       auto_publish_text: "true",
     })
-    return { id, url: `https://www.threads.net/post/${id}` }
+    return threadsPublishOutput(id, accessToken)
   }
 
   let mediaContainerId: string
@@ -384,7 +443,7 @@ async function publishThreads(input: PublishInput) {
     mediaContainerId,
     accessToken
   )
-  return { id, url: `https://www.threads.net/post/${id}` }
+  return threadsPublishOutput(id, accessToken)
 }
 
 async function uploadXImage(accessToken: string, imageUrl: string) {
@@ -497,7 +556,7 @@ async function publishDiscord(input: PublishInput) {
 export async function publishToApiPlatform(
   platform: PublishPlatform,
   input: PublishInput
-) {
+): Promise<PublishOutput> {
   if (platform === "threads") return publishThreads(input)
   if (platform === "x") return publishX(input)
   if (platform === "discord") return publishDiscord(input)
