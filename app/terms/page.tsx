@@ -2,8 +2,10 @@ import type { Metadata } from "next"
 import Link from "next/link"
 
 import { SendbaseLogo } from "@/components/logos/sendbase-logo"
+import { ThemeSelector } from "@/components/settings/theme-selector"
 import { CopyContact } from "@/components/terms/copy-contact"
 import { TermsTabs } from "@/components/terms/terms-tabs"
+import { Button } from "@/components/ui/button"
 import { Toaster } from "@/components/ui/sonner"
 import {
   Table,
@@ -41,6 +43,22 @@ export default function TermsPage() {
         </header>
         <TermsTabs terms={<TermsContent />} privacy={<PrivacyContent />} />
       </div>
+      <footer className="bg-muted py-8">
+        <div className="mx-auto flex w-full max-w-3xl flex-col gap-5 px-4 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between sm:px-6">
+          <Link href="/" aria-label="Sendbase 홈">
+            <SendbaseLogo className="h-auto w-24 text-foreground" />
+          </Link>
+          <div className="flex flex-wrap items-center gap-4 sm:gap-6">
+            <Button render={<Link href="/terms" />} nativeButton={false} variant="link" size="sm">
+              이용 약관
+            </Button>
+            <Button render={<Link href="/terms?tab=privacy" />} nativeButton={false} variant="link" size="sm">
+              개인정보처리방침
+            </Button>
+            <ThemeSelector />
+          </div>
+        </div>
+      </footer>
       <Toaster />
     </main>
   )
@@ -280,7 +298,7 @@ function RetentionTable() {
 
 function LegalTable({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <div className="overflow-hidden rounded-md border bg-background">
+    <div className="overflow-hidden rounded-md bg-background">
       <Table>{children}</Table>
     </div>
   )
