@@ -151,7 +151,7 @@ export default async function LandingPage() {
         className="relative h-svh overflow-hidden bg-muted"
       >
         <h1 id="landing-title" className="sr-only">
-          센드베이스, 하나의 글을 모든 커뮤니티로
+          방송 공지를 5개 채널에 한 번에 게시하세요. 회원가입 없음, 결제 없음.
         </h1>
         <div
           aria-hidden="true"

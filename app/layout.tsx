@@ -8,7 +8,7 @@ import { getSiteUrl } from "@/lib/site-url"
 export const metadata: Metadata = {
   metadataBase: getSiteUrl(),
   title: {
-    default: "센드베이스 | 다채널 방송 공지 일괄 작성",
+    default: "센드베이스 | 스트리머용 방송 공지 일괄 작성기",
     template: "%s · 센드베이스",
   },
   description:
