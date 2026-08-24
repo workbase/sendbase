@@ -11,7 +11,13 @@ import {
   useTransition,
 } from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
-import { EditorContent, useEditor } from "@tiptap/react"
+import {
+  EditorContent,
+  Extension,
+  useEditor,
+  useEditorState,
+} from "@tiptap/react"
+import { BubbleMenu } from "@tiptap/react/menus"
 import Image from "@tiptap/extension-image"
 import LinkExtension from "@tiptap/extension-link"
 import Placeholder from "@tiptap/extension-placeholder"
@@ -41,6 +47,7 @@ import {
   uploadPostImageAction,
 } from "@/app/actions/posts"
 import { PlatformLogo } from "@/components/logos/platform-logo"
+import { EditorLinkDialog } from "@/components/workspace/editor-link-dialog"
 import { usePostHistory } from "@/components/workspace/post-history"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
@@ -60,6 +67,10 @@ import {
   platformStatusTone,
   platformToggleTone,
 } from "@/lib/platforms/toggle-tone"
+import {
+  normalizeEditorLinkUrl,
+  type EditorLinkFormValues,
+} from "@/lib/posts/editor-link"
 import {
   postFormSchema,
   requiresPostTitle,
@@ -90,6 +101,20 @@ const loginProviders = [
   { id: "cime", label: "씨미로 계속하기" },
 ] as const
 
+const ResetMarksOnEnter = Extension.create({
+  name: "resetMarksOnEnter",
+  priority: 1_000,
+  addKeyboardShortcuts() {
+    return {
+      Enter: () => this.editor.commands.splitBlock({ keepMarks: false }),
+    }
+  },
+})
+
+const NonInclusiveLink = LinkExtension.extend({
+  inclusive: false,
+})
+
 const OptimizedImage = Image.extend({
   addAttributes() {
     return {
@@ -109,6 +134,24 @@ const OptimizedImage = Image.extend({
     }
   },
 })
+
+type LinkDialogState = {
+  open: boolean
+  from: number
+  to: number
+  hasSelectedText: boolean
+  canRemove: boolean
+  values: EditorLinkFormValues
+}
+
+const initialLinkDialogState: LinkDialogState = {
+  open: false,
+  from: 0,
+  to: 0,
+  hasSelectedText: false,
+  canRemove: false,
+  values: { text: "", url: "https://" },
+}
 
 function subscribeToHydration() {
   return () => undefined
@@ -325,6 +368,9 @@ export function PostEditor({
   )
   const effectiveLoginError = loginError ?? urlLoginError
   const [isPublishing, startPublishing] = useTransition()
+  const [linkDialog, setLinkDialog] = useState<LinkDialogState>(
+    initialLinkDialogState
+  )
   const imageInputRef = useRef<HTMLInputElement>(null)
   const editorContainerRef = useRef<HTMLDivElement>(null)
   const previewImageUrlRef = useRef<string | null>(null)
@@ -404,8 +450,9 @@ export function PostEditor({
         codeBlock: false,
         horizontalRule: false,
       }),
+      ResetMarksOnEnter,
       Underline,
-      LinkExtension.configure({
+      NonInclusiveLink.configure({
         openOnClick: false,
         autolink: true,
         defaultProtocol: "https",
@@ -438,6 +485,20 @@ export function PostEditor({
       setValue("contentHtml", html, { shouldDirty: true, shouldValidate: true })
       setPlainText(currentEditor.getText({ blockSeparator: "\n" }))
     },
+  })
+
+  const editorState = useEditorState({
+    editor,
+    selector: ({ editor: currentEditor }) => ({
+      bold: currentEditor?.isActive("bold") ?? false,
+      italic: currentEditor?.isActive("italic") ?? false,
+      underline: currentEditor?.isActive("underline") ?? false,
+      strike: currentEditor?.isActive("strike") ?? false,
+      link: currentEditor?.isActive("link") ?? false,
+      alignLeft: currentEditor?.isActive({ textAlign: "left" }) ?? false,
+      alignCenter: currentEditor?.isActive({ textAlign: "center" }) ?? false,
+      alignRight: currentEditor?.isActive({ textAlign: "right" }) ?? false,
+    }),
   })
 
   const loadPostIntoEditor = useCallback(
@@ -483,24 +544,82 @@ export function PostEditor({
     return () => postHistory.setPostLoader(null)
   }, [loadPostIntoEditor, postHistory])
 
-  function applyLink() {
+  function openLinkDialog() {
     if (!editor) return
-    const previous = editor.getAttributes("link").href as string | undefined
-    const url = window.prompt(
-      "연결할 URL을 입력해 주세요.",
-      previous ?? "https://"
-    )
-    if (url === null) return
-    if (!url.trim()) {
-      editor.chain().focus().extendMarkRange("link").unsetLink().run()
-      return
+
+    const canRemove = editor.isActive("link")
+    if (canRemove && editor.state.selection.empty) {
+      editor.commands.extendMarkRange("link")
     }
+
+    const { from, to, empty } = editor.state.selection
+    const selectedText = empty
+      ? ""
+      : editor.state.doc.textBetween(from, to, " ").trim()
+    const hasSelectedText = selectedText.length > 0
+    const href = editor.getAttributes("link").href
+
+    setLinkDialog({
+      open: true,
+      from,
+      to,
+      hasSelectedText,
+      canRemove,
+      values: {
+        text: selectedText,
+        url: typeof href === "string" ? href : "https://",
+      },
+    })
+  }
+
+  function closeLinkDialog(restoreSelection: boolean) {
+    setLinkDialog((current) => ({ ...current, open: false }))
+    if (!restoreSelection || !editor) return
+
+    requestAnimationFrame(() => {
+      editor
+        .chain()
+        .focus()
+        .setTextSelection({ from: linkDialog.from, to: linkDialog.to })
+        .run()
+    })
+  }
+
+  function applyLink(values: EditorLinkFormValues) {
+    if (!editor) return
+
+    const href = normalizeEditorLinkUrl(values.url)
+    const chain = editor
+      .chain()
+      .focus()
+      .setTextSelection({ from: linkDialog.from, to: linkDialog.to })
+
+    if (linkDialog.hasSelectedText) {
+      chain.setLink({ href }).setTextSelection(linkDialog.to).run()
+    } else {
+      const text = values.text.trim() || values.url.trim()
+      const linkEnd = linkDialog.from + text.length
+      chain
+        .insertContent(text)
+        .setTextSelection({ from: linkDialog.from, to: linkEnd })
+        .setLink({ href })
+        .setTextSelection(linkEnd)
+        .run()
+    }
+
+    closeLinkDialog(false)
+  }
+
+  function removeLink() {
+    if (!editor) return
+
     editor
       .chain()
       .focus()
-      .extendMarkRange("link")
-      .setLink({ href: url.trim() })
+      .setTextSelection({ from: linkDialog.from, to: linkDialog.to })
+      .unsetLink()
       .run()
+    closeLinkDialog(false)
   }
 
   async function attachImage(file: File) {
@@ -674,7 +793,10 @@ export function PostEditor({
         )}
       />
 
-      <Card radius="top" className="gap-0 py-0 editor-card-uplight">
+      <Card
+        radius="top"
+        className="relative z-10 gap-0 overflow-visible py-0 editor-card-uplight"
+      >
         {shouldShowTitle ? (
           <div className="px-7 pt-6 pb-4 sm:px-10 sm:pt-8 sm:pb-5">
             <Input
@@ -690,36 +812,34 @@ export function PostEditor({
             ) : null}
           </div>
         ) : null}
-        <div
-          className={cn(
-            "flex flex-wrap items-center gap-0.5 px-7 py-2 sm:px-10",
-            !shouldShowTitle && "pt-7 sm:pt-10"
-          )}
-        >
+        {!shouldShowTitle ? (
+          <div className="h-5 sm:h-8" aria-hidden="true" />
+        ) : null}
+        <div className="sticky top-0 z-30 flex flex-wrap items-center gap-0.5 bg-card/95 px-7 py-2 backdrop-blur-sm sm:px-10">
           <ToolbarButton
             label="굵게"
-            active={editor?.isActive("bold")}
+            active={editorState?.bold}
             onClick={() => editor?.chain().focus().toggleBold().run()}
           >
             <BoldIcon />
           </ToolbarButton>
           <ToolbarButton
             label="기울임"
-            active={editor?.isActive("italic")}
+            active={editorState?.italic}
             onClick={() => editor?.chain().focus().toggleItalic().run()}
           >
             <ItalicIcon />
           </ToolbarButton>
           <ToolbarButton
             label="밑줄"
-            active={editor?.isActive("underline")}
+            active={editorState?.underline}
             onClick={() => editor?.chain().focus().toggleUnderline().run()}
           >
             <UnderlineIcon />
           </ToolbarButton>
           <ToolbarButton
             label="취소선"
-            active={editor?.isActive("strike")}
+            active={editorState?.strike}
             onClick={() => editor?.chain().focus().toggleStrike().run()}
           >
             <StrikethroughIcon />
@@ -727,8 +847,8 @@ export function PostEditor({
           <span className="mx-1 h-5 w-px bg-border" />
           <ToolbarButton
             label="링크"
-            active={editor?.isActive("link")}
-            onClick={applyLink}
+            active={editorState?.link}
+            onClick={openLinkDialog}
           >
             <Link2Icon />
           </ToolbarButton>
@@ -752,26 +872,80 @@ export function PostEditor({
           <span className="mx-1 h-5 w-px bg-border" />
           <ToolbarButton
             label="왼쪽 정렬"
-            active={editor?.isActive({ textAlign: "left" })}
+            active={editorState?.alignLeft}
             onClick={() => editor?.chain().focus().setTextAlign("left").run()}
           >
             <AlignLeftIcon />
           </ToolbarButton>
           <ToolbarButton
             label="가운데 정렬"
-            active={editor?.isActive({ textAlign: "center" })}
+            active={editorState?.alignCenter}
             onClick={() => editor?.chain().focus().setTextAlign("center").run()}
           >
             <AlignCenterIcon />
           </ToolbarButton>
           <ToolbarButton
             label="오른쪽 정렬"
-            active={editor?.isActive({ textAlign: "right" })}
+            active={editorState?.alignRight}
             onClick={() => editor?.chain().focus().setTextAlign("right").run()}
           >
             <AlignRightIcon />
           </ToolbarButton>
         </div>
+        {editor ? (
+          <BubbleMenu
+            editor={editor}
+            shouldShow={({ editor: currentEditor, from, to }) =>
+              currentEditor.isEditable &&
+              from !== to &&
+              currentEditor.state.doc.textBetween(from, to, " ").trim().length >
+                0
+            }
+            options={{
+              placement: "top",
+              offset: 12,
+              flip: true,
+              shift: { padding: 8 },
+            }}
+            className="z-50 flex items-center gap-0.5 rounded-lg border bg-popover p-1 shadow-md"
+          >
+            <ToolbarButton
+              label="굵게"
+              active={editorState?.bold}
+              onClick={() => editor.chain().focus().toggleBold().run()}
+            >
+              <BoldIcon />
+            </ToolbarButton>
+            <ToolbarButton
+              label="기울임"
+              active={editorState?.italic}
+              onClick={() => editor.chain().focus().toggleItalic().run()}
+            >
+              <ItalicIcon />
+            </ToolbarButton>
+            <ToolbarButton
+              label="밑줄"
+              active={editorState?.underline}
+              onClick={() => editor.chain().focus().toggleUnderline().run()}
+            >
+              <UnderlineIcon />
+            </ToolbarButton>
+            <ToolbarButton
+              label="취소선"
+              active={editorState?.strike}
+              onClick={() => editor.chain().focus().toggleStrike().run()}
+            >
+              <StrikethroughIcon />
+            </ToolbarButton>
+            <ToolbarButton
+              label="링크"
+              active={editorState?.link}
+              onClick={openLinkDialog}
+            >
+              <Link2Icon />
+            </ToolbarButton>
+          </BubbleMenu>
+        ) : null}
         <EditorContent
           editor={editor}
           className="min-h-[min(20rem,33.333dvh)] sm:min-h-[min(24rem,33.333dvh)] [&_.tiptap_p.is-editor-empty:first-child::before]:pointer-events-none [&_.tiptap_p.is-editor-empty:first-child::before]:float-left [&_.tiptap_p.is-editor-empty:first-child::before]:h-0 [&_.tiptap_p.is-editor-empty:first-child::before]:text-muted-foreground/60 [&_.tiptap_p.is-editor-empty:first-child::before]:content-[attr(data-placeholder)]"
@@ -845,7 +1019,9 @@ export function PostEditor({
               onClick={publish}
               disabled={isPublishing}
             >
-              <span>{isPublishing ? "1분 이내로 완료돼요" : "공지 작성하기"}</span>
+              <span>
+                {isPublishing ? "1분 이내로 완료돼요" : "공지 작성하기"}
+              </span>
               {isPublishing ? (
                 <LoaderCircleIcon className="animate-spin" />
               ) : null}
@@ -853,6 +1029,17 @@ export function PostEditor({
           )}
         </div>
       </Card>
+      <EditorLinkDialog
+        open={linkDialog.open}
+        hasSelectedText={linkDialog.hasSelectedText}
+        canRemove={linkDialog.canRemove}
+        initialValues={linkDialog.values}
+        onOpenChange={(open) => {
+          if (!open) closeLinkDialog(true)
+        }}
+        onSubmit={applyLink}
+        onRemove={removeLink}
+      />
     </div>
   )
 }

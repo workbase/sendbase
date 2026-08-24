@@ -20,12 +20,12 @@ export default async function DashboardPage() {
       />
       <Link
         href="/dashboard"
-        className="fixed top-5 left-5 z-10 text-foreground"
+        className="fixed top-5 left-5 z-20 text-foreground"
         aria-label="Sendbase 대시보드"
       >
         <SendbaseLogo className="h-auto w-32" />
       </Link>
-      <div className="fixed top-3 right-3 z-10">
+      <div className="fixed top-3 right-3 z-20">
         <DashboardSettingsMenu user={user} />
       </div>
       <DeferredPostEditor connections={connections} />
