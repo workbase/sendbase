@@ -12,7 +12,7 @@ export const metadata: Metadata = {
     template: "%s · 센드베이스",
   },
   description:
-    "열성 팬들만 보는 곳에 공지를 쓰는 대신, 지나가던 잠재 시청자들의 눈길을 사로잡으세요.",
+    "모든 채널에 공지를 한 번에 게시하고, 지나가던 잠재 시청자들의 눈길을 사로잡으세요. 결제 없는 완전 무료.",
   openGraph: {
     locale: "ko_KR",
     siteName: "센드베이스",
