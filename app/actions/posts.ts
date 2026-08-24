@@ -13,6 +13,7 @@ import {
 import { publishToApiPlatform } from "@/lib/platforms/publish"
 import {
   htmlToPlainText,
+  htmlToDiscordMarkdown,
   imageMetadataFromHtml,
   imageUrlsFromHtml,
   sanitizeEditorHtml,
@@ -56,13 +57,15 @@ export async function getPostDetailAction(postId: string) {
 function validateLimits(
   platforms: PublishPlatform[],
   text: string,
+  discordContent: string,
   images: string[]
 ) {
   for (const platform of platforms) {
     const limit = platformLimits[platform]
+    const platformText = platform === "discord" ? discordContent : text
     if (
       limit.maxCharacters &&
-      countCharacters(platform, text) > limit.maxCharacters
+      countCharacters(platform, platformText) > limit.maxCharacters
     ) {
       throw new Error(
         `${limit.label} 글자 수 제한(${limit.maxCharacters}자)을 초과했습니다.`
@@ -121,10 +124,14 @@ export async function publishPostAction(
     )
   const sanitized = sanitizeEditorHtml(parsed.data.contentHtml)
   const plainText = htmlToPlainText(sanitized)
+  const discordText = htmlToDiscordMarkdown(sanitized)
+  const discordContent = parsed.data.title
+    ? `**${parsed.data.title}**\n\n${discordText}`
+    : discordText
   const images = imageUrlsFromHtml(sanitized)
   if (!plainText && images.length === 0)
     throw new Error("본문 또는 이미지를 추가해 주세요.")
-  validateLimits(parsed.data.destinations, plainText, images)
+  validateLimits(parsed.data.destinations, plainText, discordContent, images)
   const soopHtml = parsed.data.destinations.includes("soop")
     ? await preparePostHtmlForSoop(user.id, sanitized)
     : null
@@ -206,6 +213,7 @@ export async function publishPostAction(
         userId: user.id,
         title: parsed.data.title,
         text,
+        discordText: discordContent,
         imageUrls,
       })
       await supabase

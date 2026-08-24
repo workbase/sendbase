@@ -108,6 +108,37 @@ export function htmlToPlainText(html: string) {
     .trim()
 }
 
+function escapeDiscordLinkLabel(value: string) {
+  return value.replace(/[\\[\]]/g, "\\\\$&")
+}
+
+function escapeDiscordLinkUrl(value: string) {
+  return value.replace(/\\/g, "\\\\\\\\").replace(/\)/g, "\\\\)")
+}
+
+/**
+ * Converts the editor's supported rich-text HTML into Discord's Markdown subset.
+ * Alignment has no Discord message equivalent and is intentionally omitted.
+ */
+export function htmlToDiscordMarkdown(html: string) {
+  const withDiscordMarkdown = html
+    .replace(
+      /<a\s+[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/gi,
+      (_match, href: string, label: string) =>
+        `[${escapeDiscordLinkLabel(label)}](${escapeDiscordLinkUrl(href)})`
+    )
+    .replace(/<(strong|b)>/gi, "**")
+    .replace(/<\/(strong|b)>/gi, "**")
+    .replace(/<(em|i)>/gi, "*")
+    .replace(/<\/(em|i)>/gi, "*")
+    .replace(/<u>/gi, "__")
+    .replace(/<\/u>/gi, "__")
+    .replace(/<s>/gi, "~~")
+    .replace(/<\/s>/gi, "~~")
+
+  return htmlToPlainText(withDiscordMarkdown)
+}
+
 export function imageUrlsFromHtml(html: string) {
   const urls: string[] = []
   sanitizeHtml(html, {

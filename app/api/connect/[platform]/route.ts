@@ -43,7 +43,10 @@ export async function GET(
       verifier = randomBytes(48).toString("base64url")
       const challenge = createHash("sha256").update(verifier).digest("base64url")
       authorizeUrl.searchParams.set("client_id", required("X_CLIENT_ID"))
-      authorizeUrl.searchParams.set("scope", "tweet.read tweet.write users.read offline.access")
+      authorizeUrl.searchParams.set(
+        "scope",
+        "tweet.read tweet.write media.write users.read offline.access"
+      )
       authorizeUrl.searchParams.set("code_challenge", challenge)
       authorizeUrl.searchParams.set("code_challenge_method", "S256")
     } else {

@@ -6,6 +6,7 @@ type PublishInput = {
   userId: string
   title: string
   text: string
+  discordText: string
   imageUrls: string[]
 }
 
@@ -506,9 +507,7 @@ async function publishDiscord(input: PublishInput) {
     throw new Error("Discord 웹훅을 다시 연결해 주세요.")
   }
 
-  const content = input.title
-    ? `**${input.title}**\n\n${input.text}`
-    : input.text
+  const content = input.discordText
   let response: Response
   if (input.imageUrls.length === 0) {
     response = await fetch(`${webhookUrl}?wait=true`, {
