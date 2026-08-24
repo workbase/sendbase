@@ -1,18 +1,24 @@
 import Link from "next/link"
+import type { Metadata } from "next"
 import type { ReactNode } from "react"
 
 import { PlatformLogo } from "@/components/logos/platform-logo"
 import { BrowserSupportGate } from "@/components/landing/browser-support-gate"
+import { DeferredLandingPostEditor } from "@/components/landing/deferred-landing-post-editor"
 import { FloatingCta } from "@/components/landing/floating-cta"
 import { SendbaseLogo } from "@/components/logos/sendbase-logo"
 import { CrispSupportButton } from "@/components/support/crisp-support-button"
 import { ThemeSelector } from "@/components/settings/theme-selector"
 import { Button } from "@/components/ui/button"
-import { PostEditor } from "@/components/workspace/post-editor"
 import { platformLimits } from "@/lib/platforms/limits"
-import { getCurrentUser } from "@/lib/auth/session"
 import type { PlatformConnection, PublishPlatform } from "@/lib/types"
 import { publishPlatforms } from "@/lib/types"
+
+export const metadata: Metadata = {
+  alternates: {
+    canonical: "/",
+  },
+}
 
 const landingConnections: PlatformConnection[] = publishPlatforms.map(
   (platform) => ({
@@ -44,18 +50,16 @@ const mockPosts: Array<{
     id: "highlight-clip",
     title: "8월 방송시간표임니다!!",
     date: "2026. 8. 16. 오전 11:00",
-    content:
-      "별다른 일 없으면 시간표대로 할 것 같아용 오늘은 쉬는날!",
-    platforms: ["discord", "naver_cafe", "threads","x"],
+    content: "별다른 일 없으면 시간표대로 할 것 같아용 오늘은 쉬는날!",
+    platforms: ["discord", "naver_cafe", "threads", "x"],
     tilt: "-rotate-1",
   },
   {
     id: "weekend-notice",
     title: "이따가 봐용",
     date: "2026. 8. 17. 오후 4:20",
-    content:
-      "오늘 9시쯤에 켜서 시참 컨텐츠 할 예정! 방송에서 봅시당~~",
-    platforms: ["soop", "discord", "naver_cafe","x"],
+    content: "오늘 9시쯤에 켜서 시참 컨텐츠 할 예정! 방송에서 봅시당~~",
+    platforms: ["soop", "discord", "naver_cafe", "x"],
     tilt: "rotate-1",
   },
 ]
@@ -63,7 +67,8 @@ const mockPosts: Array<{
 const faqItems: Array<{ question: string; answer: ReactNode }> = [
   {
     question: "센드베이스는 어떤 서비스인가요?",
-    answer: "센드베이스는 방송 공지를 딱 한 번만 작성하고, 5개의 SNS 채널에 한 번에 올릴 수 있는 무료 서비스예요.",
+    answer:
+      "센드베이스는 방송 공지를 딱 한 번만 작성하고, 5개의 SNS 채널에 한 번에 올릴 수 있는 무료 서비스예요.",
   },
   {
     question: "센드베이스는 무료인가요?",
@@ -71,9 +76,10 @@ const faqItems: Array<{ question: string; answer: ReactNode }> = [
   },
   {
     question: "사용량이나 횟수 제한이 있나요?",
-    answer: "X에는 하루에 공지를 최대 3개까지만 작성할 수 있어요. 이외의 플랫폼에서는 제한 없이 계속 사용할 수 있어요.",
+    answer:
+      "X에는 하루에 공지를 최대 3개까지만 작성할 수 있어요. 이외의 플랫폼에서는 제한 없이 계속 사용할 수 있어요.",
   },
-   {
+  {
     question: "회원가입이나 인증 절차가 따로 있나요?",
     answer: "아니요, 로그인 후 바로 시작하실 수 있어요.",
   },
@@ -107,7 +113,7 @@ const faqItems: Array<{ question: string; answer: ReactNode }> = [
     answer:
       "업로드할 채널들을 선택하면, 가장 제한이 엄격한 곳을 기준으로 미리 한도를 알려드리며, 제한을 넘어서 내용이 잘리는 경우를 방지해줘요.",
   },
- {
+  {
     question: "문의나 버그 신고 등은 어디로 하면 되나요?",
     answer:
       "이 페이지 최하단의 '문의 및 오류 신고'를 누르거나, 로그인 후 우측 상단 메뉴를 눌러 문의 메시지를 시작할 수 있어요.",
@@ -132,7 +138,6 @@ const faqItems: Array<{ question: string; answer: ReactNode }> = [
 ]
 
 export default async function LandingPage() {
-  const user = await getCurrentUser()
   return (
     <main className="bg-muted">
       <BrowserSupportGate />
@@ -163,7 +168,7 @@ export default async function LandingPage() {
             ))}
           </div>
           <div className="pt-12">
-            <PostEditor connections={landingConnections} mode="landing" />
+            <DeferredLandingPostEditor connections={landingConnections} />
           </div>
         </div>
       </section>
@@ -200,19 +205,14 @@ export default async function LandingPage() {
               이용 약관
             </Button>
             <Button
-              render={<Link href="/terms?tab=privacy" />}
+              render={<Link href="/privacy" />}
               nativeButton={false}
               variant="link"
               size="sm"
             >
               개인정보처리방침
             </Button>
-            <CrispSupportButton
-              user={user}
-              variant="link"
-              size="sm"
-              showIcon={false}
-            />
+            <CrispSupportButton variant="link" size="sm" showIcon={false} />
             <ThemeSelector />
           </div>
         </div>

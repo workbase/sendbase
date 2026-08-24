@@ -3,7 +3,8 @@
 import * as React from "react"
 import { MessageCircleQuestionIcon } from "lucide-react"
 
-import { openCrispChat } from "@/lib/support/crisp"
+import { getSupportIdentityAction } from "@/app/actions/support"
+import { openCrispChat, preloadCrispChat } from "@/lib/support/crisp"
 import type { AppUser } from "@/lib/types"
 import { Button } from "@/components/ui/button"
 
@@ -22,8 +23,24 @@ export function CrispSupportButton({
   className,
   showIcon = true,
 }: CrispSupportButtonProps) {
-  const handleClick = () => {
-    void openCrispChat(user ?? undefined)
+  const [isOpening, setIsOpening] = React.useState(false)
+
+  const handleClick = async () => {
+    if (isOpening) return
+    setIsOpening(true)
+
+    try {
+      const identityPromise = user
+        ? Promise.resolve(user)
+        : getSupportIdentityAction().catch(() => null)
+      const [identity] = await Promise.all([
+        identityPromise,
+        preloadCrispChat(),
+      ])
+      await openCrispChat(identity ?? undefined)
+    } finally {
+      setIsOpening(false)
+    }
   }
 
   return (
@@ -32,7 +49,9 @@ export function CrispSupportButton({
       variant={variant}
       size={size}
       className={className}
-      onClick={handleClick}
+      disabled={isOpening}
+      aria-busy={isOpening}
+      onClick={() => void handleClick()}
     >
       {showIcon ? <MessageCircleQuestionIcon /> : null}
       문의 및 오류 신고
