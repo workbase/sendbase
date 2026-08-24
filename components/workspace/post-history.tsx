@@ -48,28 +48,36 @@ export function usePostHistory(optional = false) {
 }
 
 function scrollToBottom(viewport: HTMLDivElement) {
-  const target = viewport.scrollHeight - viewport.clientHeight
+  cancelScrollToBottom(viewport)
+
+  const getTarget = () => viewport.scrollHeight - viewport.clientHeight
   if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-    viewport.scrollTop = target
+    viewport.scrollTop = getTarget()
     return
   }
 
-  cancelScrollToBottom(viewport)
-
-  const start = viewport.scrollTop
-  const distance = target - start
-  if (distance === 0) return
-  const startedAt = performance.now()
+  let start = viewport.scrollTop
+  let target = getTarget()
+  if (target === start) return
+  let startedAt = performance.now()
   const duration = 800
 
   const animate = (now: number) => {
+    const nextTarget = getTarget()
+    if (nextTarget !== target) {
+      start = viewport.scrollTop
+      target = nextTarget
+      startedAt = now
+    }
+
     const progress = Math.min((now - startedAt) / duration, 1)
     const easedProgress = 1 - (1 - progress) ** 3
-    viewport.scrollTop = start + distance * easedProgress
+    viewport.scrollTop = start + (target - start) * easedProgress
 
     if (progress < 1) {
       scrollAnimationFrames.set(viewport, requestAnimationFrame(animate))
     } else {
+      viewport.scrollTop = getTarget()
       scrollAnimationFrames.delete(viewport)
     }
   }
@@ -271,6 +279,10 @@ export function PostHistory({
     },
     []
   )
+  const stopAutoScroll = useCallback(() => {
+    const viewport = viewportRef.current
+    if (viewport) cancelScrollToBottom(viewport)
+  }, [])
 
   useLayoutEffect(() => {
     const viewport = viewportRef.current
@@ -304,10 +316,19 @@ export function PostHistory({
     if (!viewport || !content || !isInitialPositioned) return
 
     const observer = new ResizeObserver(() => {
-      if (shouldStickToBottomRef.current) scrollToBottom(viewport)
+      if (
+        !shouldStickToBottomRef.current ||
+        scrollAnimationFrames.has(viewport)
+      ) {
+        return
+      }
+      scrollToBottom(viewport)
     })
     observer.observe(content)
-    return () => observer.disconnect()
+    return () => {
+      observer.disconnect()
+      cancelScrollToBottom(viewport)
+    }
   }, [isInitialPositioned])
 
   useEffect(() => {
@@ -366,8 +387,15 @@ export function PostHistory({
         className={`h-svh overflow-y-auto overscroll-contain ${
           isInitialPositioned ? "visible" : "invisible"
         }`}
+        onPointerDownCapture={stopAutoScroll}
+        onWheelCapture={stopAutoScroll}
+        onKeyDownCapture={stopAutoScroll}
         onScroll={(event) => {
           const viewport = event.currentTarget
+          if (scrollAnimationFrames.has(viewport)) {
+            lastScrollTopRef.current = viewport.scrollTop
+            return
+          }
           if (
             isInitialPositioned &&
             viewport.scrollTop < lastScrollTopRef.current - 1
