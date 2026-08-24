@@ -121,7 +121,7 @@ function PostMessage({
         {post.contentPreview.length === 320 ? "…" : null}
       </p>
       {post.images.length > 0 ? (
-        <div className="mt-4 grid grid-cols-2 gap-2">
+        <div className="mt-4 flex flex-wrap items-start gap-2">
           {visibleImages.map((image) => (
             // Thumbnails are already resized WebP assets, so another image proxy adds no value here.
             // eslint-disable-next-line @next/next/no-img-element
@@ -133,11 +133,11 @@ function PostMessage({
               height={image.height}
               loading="lazy"
               decoding="async"
-              className="max-h-72 w-full rounded-xl object-contain"
+              className="h-60 w-auto max-w-full flex-none rounded-xl object-cover"
             />
           ))}
           {post.images.length > visibleImages.length ? (
-            <span className="col-span-2 text-xs text-muted-foreground">
+            <span className="w-full text-xs text-muted-foreground">
               이미지 {post.images.length - visibleImages.length}개 더 있음
             </span>
           ) : null}
@@ -194,6 +194,27 @@ function PostMessage({
               </Tooltip>
             )
           })}
+          {post.destinations.includes("discord") ? (
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <span className="inline-flex rounded-full" tabIndex={0}>
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="icon"
+                      disabled
+                      aria-label="Discord 게시됨, 링크 없음"
+                      className="rounded-full bg-muted hover:bg-muted disabled:opacity-100"
+                    >
+                      <PlatformLogo platform="discord" className="size-4" />
+                    </Button>
+                  </span>
+                }
+              />
+              <TooltipContent>디스코드는 링크가 없어요</TooltipContent>
+            </Tooltip>
+          ) : null}
         </div>
       </TooltipProvider>
     </article>

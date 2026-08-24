@@ -72,6 +72,11 @@ import {
   type EditorLinkFormValues,
 } from "@/lib/posts/editor-link"
 import {
+  isPostImageMimeType,
+  postImageAccept,
+  POST_IMAGE_MAX_BYTES,
+} from "@/lib/posts/image-constraints"
+import {
   postFormSchema,
   requiresPostTitle,
   type PostFormValues,
@@ -477,7 +482,7 @@ export function PostEditor({
     editorProps: {
       attributes: {
         class:
-          "min-h-[min(20rem,33.333dvh)] px-7 py-4 text-base leading-8 outline-none sm:min-h-[min(24rem,33.333dvh)] sm:px-10 sm:py-5 [&_a]:text-foreground [&_a]:underline [&_a]:underline-offset-4 [&_img]:my-6 [&_img]:max-h-96 [&_img]:max-w-full [&_img]:rounded-xl [&_img]:object-contain [&_p]:my-2",
+          "min-h-[min(20rem,33.333dvh)] px-7 py-4 text-base leading-8 outline-none sm:min-h-[min(24rem,33.333dvh)] sm:px-10 sm:py-5 [&_a]:text-foreground [&_a]:underline [&_a]:underline-offset-4 [&_img]:my-6 [&_img]:h-auto [&_img]:w-auto [&_img]:max-h-96 [&_img]:max-w-full [&_img]:rounded-md [&_p]:my-2",
       },
     },
     onUpdate: ({ editor: currentEditor }) => {
@@ -623,6 +628,15 @@ export function PostEditor({
   }
 
   async function attachImage(file: File) {
+    if (!isPostImageMimeType(file.type)) {
+      toast.error("JPG, PNG, WebP, GIF 이미지만 첨부할 수 있습니다.")
+      return
+    }
+    if (file.size > POST_IMAGE_MAX_BYTES) {
+      toast.error("이미지는 10MB 이하여야 합니다.")
+      return
+    }
+
     if (mode === "landing") {
       if (previewImageUrlRef.current) {
         URL.revokeObjectURL(previewImageUrlRef.current)
@@ -861,7 +875,7 @@ export function PostEditor({
           <input
             ref={imageInputRef}
             type="file"
-            accept="image/jpeg,image/png,image/webp,image/gif"
+            accept={postImageAccept}
             className="sr-only"
             onChange={(event) => {
               const file = event.target.files?.[0]

@@ -19,6 +19,10 @@ import {
   sanitizeEditorHtml,
 } from "@/lib/posts/content"
 import { optimizePostImage, preparePostHtmlForSoop } from "@/lib/posts/images"
+import {
+  isPostImageMimeType,
+  POST_IMAGE_MAX_BYTES,
+} from "@/lib/posts/image-constraints"
 import { getPostDetail, getPostHistory } from "@/lib/posts/queries"
 import { postFormSchema } from "@/lib/posts/schema"
 import { createAdminClient } from "@/lib/supabase/admin"
@@ -331,15 +335,9 @@ export async function uploadPostImageAction(formData: FormData) {
   const user = await requireUser()
   const file = formData.get("file")
   if (!(file instanceof File)) throw new Error("이미지 파일을 선택해 주세요.")
-  const allowed = new Set([
-    "image/jpeg",
-    "image/png",
-    "image/webp",
-    "image/gif",
-  ])
-  if (!allowed.has(file.type))
+  if (!isPostImageMimeType(file.type))
     throw new Error("JPG, PNG, WebP, GIF 이미지만 첨부할 수 있습니다.")
-  if (file.size > 10 * 1024 * 1024)
+  if (file.size > POST_IMAGE_MAX_BYTES)
     throw new Error("이미지는 10MB 이하여야 합니다.")
   const optimized = await optimizePostImage(
     Buffer.from(await file.arrayBuffer())
