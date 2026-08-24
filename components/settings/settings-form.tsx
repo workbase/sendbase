@@ -268,6 +268,21 @@ export function SettingsForm({
                 </div>
               )
             })}
+            <aside aria-labelledby="api-channel-guide-heading">
+              <CardContent className="space-y-3 pt-6 pb-6">
+                <h3 id="api-channel-guide-heading" className="font-medium">
+                  안내
+                </h3>
+                <ol className="list-decimal space-y-2 pl-5 text-sm text-muted-foreground">
+                  <li>
+                    디스코드 앱에서 '서버 설정 ⭢ 연동'으로 이동한 후 센드베이스 설정으로 진입해 웹후크를 눌러, 메시지를 보내는 봇을 원하는 모습으로 변경할 수 있어요.
+                  </li>
+                  <li>
+                    X에는 하루에 최대 3개의 글만 게시할 수 있어요. 모든 X API 비용을 센드베이스가 지불하고 있어, 양해 부탁드려요.
+                  </li>
+                </ol>
+              </CardContent>
+            </aside>
           </CardContent>
         </Card>
       </section>
