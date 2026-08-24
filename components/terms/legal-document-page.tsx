@@ -5,6 +5,7 @@ import { ThemeSelector } from "@/components/settings/theme-selector"
 import { CrispSupportButton } from "@/components/support/crisp-support-button"
 import { Button } from "@/components/ui/button"
 import { Toaster } from "@/components/ui/sonner"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
 const effectiveDate = "2026년 8월 23일"
 
@@ -33,24 +34,24 @@ export function LegalDocumentPage({
             시행일: {effectiveDate}
           </p>
         </header>
-        <nav aria-label="약관 문서" className="mb-8 flex gap-1">
-          <Button
-            render={<Link href="/terms" />}
-            nativeButton={false}
-            variant={current === "terms" ? "secondary" : "ghost"}
-            aria-current={current === "terms" ? "page" : undefined}
-          >
-            이용 약관
-          </Button>
-          <Button
-            render={<Link href="/privacy" />}
-            nativeButton={false}
-            variant={current === "privacy" ? "secondary" : "ghost"}
-            aria-current={current === "privacy" ? "page" : undefined}
-          >
-            개인정보처리방침
-          </Button>
-        </nav>
+        <Tabs value={current} className="mb-8">
+          <TabsList variant="line" aria-label="약관 문서">
+            <TabsTrigger
+              value="terms"
+              render={<Link href="/terms" />}
+              nativeButton={false}
+            >
+              이용 약관
+            </TabsTrigger>
+            <TabsTrigger
+              value="privacy"
+              render={<Link href="/privacy" />}
+              nativeButton={false}
+            >
+              개인정보처리방침
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
         {children}
       </div>
       <footer className="bg-muted py-8">

@@ -78,24 +78,18 @@ function LandingEditorPreview({
       </div>
       <Card radius="top" className="gap-0 py-0 editor-card-uplight">
         <div
-          className="flex h-14 items-center gap-2 px-7 sm:px-10"
+          className="flex flex-wrap items-center gap-0.5 px-7 py-2 pt-7 sm:px-10 sm:pt-10"
           aria-hidden="true"
         >
-          {Array.from({ length: 9 }, (_, index) => (
-            <span key={index} className="size-6 rounded-md bg-muted" />
-          ))}
+          <ToolbarSkeletonButtons count={4} />
+          <span className="mx-1 h-5 w-px bg-border" />
+          <ToolbarSkeletonButtons count={2} />
+          <span className="mx-1 h-5 w-px bg-border" />
+          <ToolbarSkeletonButtons count={3} />
         </div>
-        <div className="min-h-[min(20rem,33.333dvh)] px-7 py-6 sm:min-h-[min(24rem,33.333dvh)] sm:px-10">
-          <h2 className="text-lg font-semibold tracking-tight">
-            내 방송을 놓치는 팬이 없도록
-          </h2>
-          <p className="mt-3 max-w-xl text-sm leading-7 text-muted-foreground">
-            방송 공지를 한 번 작성하고 Threads, X, Discord, 네이버 카페와 SOOP에
-            한 번에 전하세요.
-          </p>
-        </div>
-        <div className="flex flex-wrap items-end justify-between gap-3 px-5 pt-5 pb-7 sm:px-8 sm:pt-8">
-          <span className="text-xs text-muted-foreground">편집기 준비 중</span>
+        <div className="min-h-[min(20rem,33.333dvh)] sm:min-h-[min(24rem,33.333dvh)]" />
+        <div className="flex flex-wrap items-end justify-between gap-3 px-5 pt-5 pb-7 sm:px-8 sm:pt-8 sm:pb-7">
+          <span className="h-4 w-24" aria-hidden="true" />
           <Button className="h-10 shadow-sm" disabled>
             무료로 시작하기
           </Button>
@@ -103,4 +97,10 @@ function LandingEditorPreview({
       </Card>
     </div>
   )
+}
+
+function ToolbarSkeletonButtons({ count }: { count: number }) {
+  return Array.from({ length: count }, (_, index) => (
+    <span key={index} className="size-7 rounded-md bg-muted" />
+  ))
 }
