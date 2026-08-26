@@ -45,8 +45,9 @@ import { Controller, useFieldArray, useForm, useWatch } from "react-hook-form"
 
 import {
   getPostDetailAction,
+  publishApiDestinationsAction,
   publishPostAction,
-  recordExtensionResultAction,
+  recordExtensionResultsAction,
   uploadPostImageAction,
 } from "@/app/actions/posts"
 import { PlatformLogo } from "@/components/logos/platform-logo"
@@ -93,6 +94,7 @@ import type {
   ExtensionPublishJob,
   PlatformConnection,
   PostHistoryItem,
+  PublishDestinationResult,
   PublishPlatform,
 } from "@/lib/types"
 import { publishPlatforms } from "@/lib/types"
@@ -286,8 +288,6 @@ function runExtensionJob(job: ExtensionPublishJob) {
     ok: boolean
     message: string
     url?: string
-    response?: Record<string, unknown>
-    completedUrlResponse?: Record<string, unknown>
   }>((resolve) => {
     const resultType =
       job.platform === "naver_cafe"
@@ -299,8 +299,6 @@ function runExtensionJob(job: ExtensionPublishJob) {
         : "SENDBASE_SOOP_AUTOWRITE_COMPLETED_URL"
     let successfulResult: { ok: true; message: string } | null = null
     let completedUrl: string | null = null
-    let response: Record<string, unknown> | undefined
-    let completedUrlResponse: Record<string, unknown> | undefined
 
     const cleanup = () => {
       window.clearTimeout(timeout)
@@ -313,8 +311,6 @@ function runExtensionJob(job: ExtensionPublishJob) {
       resolve({
         ...successfulResult,
         url: completedUrl,
-        response,
-        completedUrlResponse,
       })
     }
 
@@ -325,8 +321,6 @@ function runExtensionJob(job: ExtensionPublishJob) {
           ok: false,
           message: "확장 프로그램 응답 시간이 초과되었습니다.",
         }),
-        response,
-        completedUrlResponse,
       })
     }, 120_000)
     const listener = (event: MessageEvent<unknown>) => {
@@ -336,14 +330,12 @@ function runExtensionJob(job: ExtensionPublishJob) {
 
       if (data.type === completedUrlType && typeof data.url === "string") {
         completedUrl = data.url
-        completedUrlResponse = data
         finishIfComplete()
         return
       }
 
       if (data.type !== resultType) return
       const result = data.result as Record<string, unknown> | undefined
-      response = data
       const message =
         typeof result?.message === "string"
           ? result.message
@@ -352,7 +344,7 @@ function runExtensionJob(job: ExtensionPublishJob) {
             : "자동 작성 결과를 확인해 주세요."
       if (result?.ok !== true) {
         cleanup()
-        resolve({ ok: false, message, response })
+        resolve({ ok: false, message })
         return
       }
       successfulResult = { ok: true, message }
@@ -369,6 +361,24 @@ function runExtensionJob(job: ExtensionPublishJob) {
       window.location.origin
     )
   })
+}
+
+async function publishExtensionJobs(
+  postId: string,
+  jobs: ExtensionPublishJob[]
+): Promise<PublishDestinationResult[]> {
+  const completedJobs = await Promise.all(
+    jobs.map(async (job) => ({
+      platform: job.platform,
+      ...(await runExtensionJob(job)),
+    }))
+  )
+  await recordExtensionResultsAction({ postId, results: completedJobs })
+  return completedJobs.map(({ platform, ok, message }) => ({
+    platform,
+    ok,
+    message,
+  }))
 }
 
 function CharacterUsageRing({
@@ -1023,24 +1033,21 @@ export function PostEditor({
         }
 
         const result = actionResult.data
-        if (result.extensionJobs.length > 0) {
-          await Promise.all(
-            result.extensionJobs.map(async (job) => {
-              const extensionResult = await runExtensionJob(job)
-              await recordExtensionResultAction({
-                postId: result.postId,
-                platform: job.platform,
-                ...extensionResult,
-              })
-            })
-          )
-        }
+        const [apiResults, extensionResults] = await Promise.all([
+          result.apiPlatforms.length > 0
+            ? publishApiDestinationsAction(result.postId)
+            : Promise.resolve([]),
+          result.extensionJobs.length > 0
+            ? publishExtensionJobs(result.postId, result.extensionJobs)
+            : Promise.resolve([]),
+        ])
         const post = await getPostDetailAction(result.postId)
         if (post) postHistory?.addPost(post)
-        const failures = result.results.filter((item) => !item.ok)
+        const results = [...result.results, ...apiResults, ...extensionResults]
+        const failures = results.filter((item) => !item.ok)
         const message =
           failures.length > 0
-            ? `${result.results.length - failures.length}곳 게시 완료 · ${failures.length}곳 확인 필요`
+            ? `${results.length - failures.length}곳 게시 완료 · ${failures.length}곳 확인 필요`
             : "선택한 플랫폼에 게시 요청을 완료했습니다."
 
         if (failures.length > 0) {

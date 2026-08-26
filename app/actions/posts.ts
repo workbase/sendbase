@@ -29,7 +29,9 @@ import { getPostDetail, getPostHistory } from "@/lib/posts/queries"
 import { postFormSchema } from "@/lib/posts/schema"
 import { createAdminClient } from "@/lib/supabase/admin"
 import type {
+  ApiPublishPlatform,
   ExtensionPublishJob,
+  PublishDestinationResult,
   PublishPlatform,
   PublishPostActionResult,
   PublishResult,
@@ -44,14 +46,34 @@ type PersistPostResult =
   | {
       ok: true
       postId: string
-      imageUrls: string[]
-      threadReplies: PreparedThreadReply[]
     }
 
 type PreparedThreadReply = {
   html: string
   text: string
   imageUrls: string[]
+}
+
+const apiPlatformSchema = z.enum(["threads", "x", "discord"])
+const extensionPlatformSchema = z.enum(["naver_cafe", "soop"])
+const postIdSchema = z.string().uuid()
+
+function prepareStoredThreadReplies(value: unknown): PreparedThreadReply[] {
+  if (!Array.isArray(value)) return []
+
+  return value.flatMap((item) => {
+    if (!item || typeof item !== "object") return []
+    const contentHtml = (item as Record<string, unknown>).contentHtml
+    if (typeof contentHtml !== "string") return []
+    const html = sanitizeEditorHtml(contentHtml)
+    return [
+      {
+        html,
+        text: htmlToPlainTextWithUrls(html),
+        imageUrls: imageUrlsFromHtml(html),
+      },
+    ]
+  })
 }
 
 export async function getOlderPostsAction(before?: string) {
@@ -136,7 +158,7 @@ async function persistPost(
   }
 
   const postId = data as string
-  return { ok: true, postId, imageUrls, threadReplies }
+  return { ok: true, postId }
 }
 
 export async function publishPostAction(
@@ -198,216 +220,291 @@ export async function publishPostAction(
     mergedDiscordContent,
     mergedImageUrls
   )
-  const soopHtml = parsed.data.destinations.includes("soop")
-    ? await preparePostHtmlForSoop(user.id, mergedHtml)
-    : null
+  const extensionPlatforms = parsed.data.destinations.filter(
+    (platform): platform is "naver_cafe" | "soop" =>
+      platform === "naver_cafe" || platform === "soop"
+  )
+  const supabase = createAdminClient()
+  const [soopHtml, extensionConnections] = await Promise.all([
+    parsed.data.destinations.includes("soop")
+      ? preparePostHtmlForSoop(user.id, mergedHtml)
+      : Promise.resolve(null),
+    Promise.all(
+      extensionPlatforms.map(async (platform) => {
+        const { data, error } = await supabase
+          .from("platform_connections")
+          .select("settings")
+          .eq("user_id", user.id)
+          .eq("platform", platform)
+          .maybeSingle()
+        if (error) throw new Error(error.message)
+        return {
+          platform,
+          settings: (data?.settings ?? {}) as Record<string, string>,
+        }
+      })
+    ),
+  ])
 
   const persistedPost = await persistPost(user.id, parsed.data, threadReplies)
   if (!persistedPost.ok) {
     return { ok: false, error: persistedPost.error }
   }
 
-  const { postId, imageUrls } = persistedPost
-  const supabase = createAdminClient()
+  const { postId } = persistedPost
   const extensionJobs: ExtensionPublishJob[] = []
   const results: PublishResult["results"] = []
 
-  for (const platform of parsed.data.destinations) {
-    if (platform === "naver_cafe" || platform === "soop") {
-      const { data: connection } = await supabase
-        .from("platform_connections")
-        .select("settings")
-        .eq("user_id", user.id)
-        .eq("platform", platform)
-        .maybeSingle()
-      const settings = (connection?.settings ?? {}) as Record<string, string>
-      const payload: Record<string, string | boolean> =
-        platform === "naver_cafe"
-          ? {
-              clubId: settings.clubId ?? "",
-              menuname: settings.menuname ?? "",
-              subject: parsed.data.title,
-              contentHtml: mergedHtml,
-              submit: true,
-              autoClose: true,
-            }
-          : {
-              platform: "soop",
-              userid: settings.userid ?? "",
-              boardId: settings.boardId ?? "",
-              subject: parsed.data.title,
-              contentHtml: soopHtml ?? mergedHtml,
-              submit: true,
-              autoClose: true,
-            }
-      if (
-        (platform === "naver_cafe" &&
-          (!settings.clubId || !settings.menuname)) ||
-        (platform === "soop" && (!settings.userid || !settings.boardId))
-      ) {
-        results.push({
-          platform,
-          ok: false,
-          message: "설정에서 게시판 정보를 입력해 주세요.",
-        })
-        await supabase
-          .from("post_destinations")
-          .update({ status: "failed", error_message: "게시판 설정 누락" })
-          .eq("post_id", postId)
-          .eq("platform", platform)
-        continue
-      }
-      extensionJobs.push({
-        requestId: randomUUID(),
-        platform,
-        messageType:
-          platform === "naver_cafe"
-            ? "SENDBASE_NAVER_CAFE_AUTOWRITE"
-            : "SENDBASE_SOOP_AUTOWRITE",
-        payload,
-      })
+  for (const { platform, settings } of extensionConnections) {
+    const payload: Record<string, string | boolean> =
+      platform === "naver_cafe"
+        ? {
+            clubId: settings.clubId ?? "",
+            menuname: settings.menuname ?? "",
+            subject: parsed.data.title,
+            contentHtml: mergedHtml,
+            submit: true,
+            autoClose: true,
+          }
+        : {
+            platform: "soop",
+            userid: settings.userid ?? "",
+            boardId: settings.boardId ?? "",
+            subject: parsed.data.title,
+            contentHtml: soopHtml ?? mergedHtml,
+            submit: true,
+            autoClose: true,
+          }
+    const missingSettings =
+      platform === "naver_cafe"
+        ? !settings.clubId || !settings.menuname
+        : !settings.userid || !settings.boardId
+    if (missingSettings) {
       results.push({
         platform,
-        ok: true,
-        message: "확장 프로그램으로 전송 중입니다.",
+        ok: false,
+        message: "설정에서 게시판 정보를 입력해 주세요.",
       })
       continue
     }
+    extensionJobs.push({
+      requestId: randomUUID(),
+      platform,
+      messageType:
+        platform === "naver_cafe"
+          ? "SENDBASE_NAVER_CAFE_AUTOWRITE"
+          : "SENDBASE_SOOP_AUTOWRITE",
+      payload,
+    })
+  }
 
-    try {
-      await supabase
+  await Promise.all(
+    results.map(async (result) => {
+      const { error } = await supabase
         .from("post_destinations")
-        .update({ status: "publishing", updated_at: new Date().toISOString() })
+        .update({ status: "failed", error_message: "게시판 설정 누락" })
         .eq("post_id", postId)
-        .eq("platform", platform)
-      const publishToPlatform = await createApiPlatformPublisher(
-        platform,
-        user.id
-      )
-      const published = await publishToPlatform({
-        title: parsed.data.title,
-        text:
-          platform === "threads" || platform === "x"
-            ? socialText
-            : mergedSocialText,
-        discordText:
-          platform === "threads" || platform === "x"
-            ? discordContent
-            : mergedDiscordContent,
-        imageUrls:
-          platform === "threads" || platform === "x"
-            ? imageUrls
-            : mergedImageUrls,
-      })
-      if (platform === "threads" || platform === "x") {
-        await supabase
+        .eq("platform", result.platform)
+      if (error) throw new Error(error.message)
+    })
+  )
+
+  const apiPlatforms = parsed.data.destinations.filter(
+    (platform): platform is ApiPublishPlatform =>
+      apiPlatformSchema.safeParse(platform).success
+  )
+  if (extensionJobs.length === 0 && apiPlatforms.length === 0) {
+    await finalizePost(postId)
+  }
+  revalidatePath("/dashboard")
+  return {
+    ok: true,
+    data: { postId, apiPlatforms, extensionJobs, results },
+  }
+}
+
+export async function publishApiDestinationsAction(
+  input: unknown
+): Promise<PublishDestinationResult[]> {
+  const user = await requireUser()
+  const postId = postIdSchema.parse(input)
+  const supabase = createAdminClient()
+  const { data: post, error: postError } = await supabase
+    .from("posts")
+    .select("id, title, content_html, thread_replies")
+    .eq("id", postId)
+    .eq("user_id", user.id)
+    .maybeSingle()
+  if (postError) throw new Error(postError.message)
+  if (!post) throw new Error("게시물을 찾을 수 없습니다.")
+
+  const { data: claimedDestinations, error: claimError } = await supabase
+    .from("post_destinations")
+    .update({ status: "publishing", updated_at: new Date().toISOString() })
+    .eq("post_id", postId)
+    .eq("status", "pending")
+    .in("platform", apiPlatformSchema.options)
+    .select("platform")
+  if (claimError) throw new Error(claimError.message)
+
+  const platforms = (claimedDestinations ?? []).flatMap((destination) => {
+    const parsedPlatform = apiPlatformSchema.safeParse(destination.platform)
+    return parsedPlatform.success ? [parsedPlatform.data] : []
+  })
+  const sanitized = sanitizeEditorHtml(post.content_html)
+  const socialText = htmlToPlainTextWithUrls(sanitized)
+  const discordText = htmlToDiscordMarkdown(sanitized)
+  const discordContent = post.title
+    ? `**${post.title}**\n\n${discordText}`
+    : discordText
+  const imageUrls = imageUrlsFromHtml(sanitized)
+  const threadReplies = prepareStoredThreadReplies(post.thread_replies)
+  const mergedHtml = sanitizeEditorHtml(
+    mergeEditorHtml([sanitized, ...threadReplies.map((reply) => reply.html)])
+  )
+  const mergedSocialText = htmlToPlainTextWithUrls(mergedHtml)
+  const mergedDiscordText = htmlToDiscordMarkdown(mergedHtml)
+  const mergedDiscordContent = post.title
+    ? `**${post.title}**\n\n${mergedDiscordText}`
+    : mergedDiscordText
+  const mergedImageUrls = imageUrlsFromHtml(mergedHtml)
+
+  const results = await Promise.all(
+    platforms.map(async (platform): Promise<PublishDestinationResult> => {
+      try {
+        const publishToPlatform = await createApiPlatformPublisher(
+          platform,
+          user.id
+        )
+        const usesThread = platform === "threads" || platform === "x"
+        const published = await publishToPlatform({
+          title: post.title,
+          text: usesThread ? socialText : mergedSocialText,
+          discordText: usesThread ? discordContent : mergedDiscordContent,
+          imageUrls: usesThread ? imageUrls : mergedImageUrls,
+        })
+
+        if (usesThread) {
+          const { error } = await supabase
+            .from("post_destinations")
+            .update({
+              external_post_id: published.id,
+              external_url: published.url,
+              updated_at: new Date().toISOString(),
+            })
+            .eq("post_id", postId)
+            .eq("platform", platform)
+          if (error) throw new Error(error.message)
+
+          let replyToId = published.id
+          for (const reply of threadReplies) {
+            const replyResult = await publishToPlatform({
+              title: "",
+              text: reply.text,
+              discordText: reply.text,
+              imageUrls: reply.imageUrls,
+              replyToId,
+            })
+            replyToId = replyResult.id
+          }
+        }
+
+        const { error } = await supabase
           .from("post_destinations")
           .update({
+            status: "published",
             external_post_id: published.id,
             external_url: published.url,
+            error_message: null,
             updated_at: new Date().toISOString(),
           })
           .eq("post_id", postId)
           .eq("platform", platform)
+        if (error) throw new Error(error.message)
 
-        let replyToId = published.id
-        for (const reply of persistedPost.threadReplies) {
-          const replyResult = await publishToPlatform({
-            title: "",
-            text: reply.text,
-            discordText: reply.text,
-            imageUrls: reply.imageUrls,
-            replyToId,
+        return {
+          platform,
+          ok: true,
+          message: published.warning ?? "게시되었습니다.",
+        }
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : "게시하지 못했습니다."
+        const { error: updateError } = await supabase
+          .from("post_destinations")
+          .update({
+            status: "failed",
+            error_message: message,
+            updated_at: new Date().toISOString(),
           })
-          replyToId = replyResult.id
+          .eq("post_id", postId)
+          .eq("platform", platform)
+        return {
+          platform,
+          ok: false,
+          message: updateError
+            ? `${message} 결과 상태도 저장하지 못했습니다: ${updateError.message}`
+            : message,
         }
       }
-      await supabase
-        .from("post_destinations")
-        .update({
-          status: "published",
-          external_post_id: published.id,
-          external_url: published.url,
-          error_message: null,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("post_id", postId)
-        .eq("platform", platform)
-      results.push({
-        platform,
-        ok: true,
-        message: published.warning ?? "게시되었습니다.",
-      })
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "게시하지 못했습니다."
-      await supabase
-        .from("post_destinations")
-        .update({
-          status: "failed",
-          error_message: message,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("post_id", postId)
-        .eq("platform", platform)
-      results.push({ platform, ok: false, message })
-    }
-  }
+    })
+  )
 
-  if (extensionJobs.length === 0) await finalizePost(postId)
+  await finalizePost(postId)
   revalidatePath("/dashboard")
-  return { ok: true, data: { postId, extensionJobs, results } }
+  return results
 }
 
 const extensionResultSchema = z.object({
-  postId: z.string().uuid(),
-  platform: z.enum(["naver_cafe", "soop"]),
+  platform: extensionPlatformSchema,
   ok: z.boolean(),
   message: z.string().max(500),
   url: z.string().url().optional(),
-  response: z.record(z.string(), z.unknown()).optional(),
-  completedUrlResponse: z.record(z.string(), z.unknown()).optional(),
 })
 
-export async function recordExtensionResultAction(input: unknown) {
+const extensionResultsSchema = z.object({
+  postId: postIdSchema,
+  results: z.array(extensionResultSchema).max(2),
+})
+
+export async function recordExtensionResultsAction(input: unknown) {
   const user = await requireUser()
-  const parsed = extensionResultSchema.parse(input)
-  console.info("[publish][extension-response]", {
-    postId: parsed.postId,
-    platform: parsed.platform,
-    ok: parsed.ok,
-    message: parsed.message,
-    response: parsed.response,
-    completedUrlResponse: parsed.completedUrlResponse,
-  })
+  const parsed = extensionResultsSchema.parse(input)
   const supabase = createAdminClient()
-  const { data: post } = await supabase
+  const { data: post, error: postError } = await supabase
     .from("posts")
     .select("id")
     .eq("id", parsed.postId)
     .eq("user_id", user.id)
     .maybeSingle()
+  if (postError) throw new Error(postError.message)
   if (!post) throw new Error("게시물을 찾을 수 없습니다.")
-  await supabase
-    .from("post_destinations")
-    .update({
-      status: parsed.ok ? "published" : "failed",
-      error_message: parsed.ok ? null : parsed.message,
-      external_url: parsed.url ?? null,
-      updated_at: new Date().toISOString(),
+  await Promise.all(
+    parsed.results.map(async (result) => {
+      const { error } = await supabase
+        .from("post_destinations")
+        .update({
+          status: result.ok ? "published" : "failed",
+          error_message: result.ok ? null : result.message,
+          external_url: result.url ?? null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("post_id", parsed.postId)
+        .eq("platform", result.platform)
+      if (error) throw new Error(error.message)
     })
-    .eq("post_id", parsed.postId)
-    .eq("platform", parsed.platform)
+  )
   await finalizePost(parsed.postId)
   revalidatePath("/dashboard")
 }
 
 async function finalizePost(postId: string) {
   const supabase = createAdminClient()
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("post_destinations")
     .select("status")
     .eq("post_id", postId)
+  if (error) throw new Error(error.message)
   const statuses = (data ?? []).map((row) => row.status as string)
   const pending = statuses.some(
     (status) => status === "pending" || status === "publishing"
@@ -423,7 +520,7 @@ async function finalizePost(postId: string) {
       : publishedCount === 0
         ? "failed"
         : "partial"
-  await supabase
+  const { error: updateError } = await supabase
     .from("posts")
     .update({
       status,
@@ -431,6 +528,7 @@ async function finalizePost(postId: string) {
       updated_at: new Date().toISOString(),
     })
     .eq("id", postId)
+  if (updateError) throw new Error(updateError.message)
 }
 
 export async function uploadPostImageAction(formData: FormData) {

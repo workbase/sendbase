@@ -9,6 +9,7 @@ import {
   useRef,
   useState,
 } from "react"
+import Link from "next/link"
 import { ArrowDownIcon, LoaderCircleIcon } from "lucide-react"
 
 import { getOlderPostsAction } from "@/app/actions/posts"
@@ -424,9 +425,18 @@ export function PostHistory({
             <PostMessage key={post.id} post={post} onLoad={loadPost} />
           ))}
           {posts.length === 0 ? (
-            <p className="py-12 text-center text-sm text-muted-foreground">
-              아직 게시물이 없습니다. 첫 공지를 작성해 보세요.
-            </p>
+            <div className="flex flex-col items-center gap-3 py-12">
+              <p className="text-center text-sm text-muted-foreground">
+                아직 게시물이 없습니다. 첫 공지를 작성해 보세요.
+              </p>
+              <Button
+                render={<Link href="/settings" />}
+                nativeButton={false}
+                variant="secondary"
+              >
+                연동 설정하기
+              </Button>
+            </div>
           ) : null}
           <div className="mt-auto pt-12">{children}</div>
         </div>

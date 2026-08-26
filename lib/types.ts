@@ -70,14 +70,22 @@ export type ExtensionPublishJob = {
   payload: Record<string, string | boolean>
 }
 
+export type ApiPublishPlatform = Extract<
+  PublishPlatform,
+  "threads" | "x" | "discord"
+>
+
+export type PublishDestinationResult = {
+  platform: PublishPlatform
+  ok: boolean
+  message: string
+}
+
 export type PublishResult = {
   postId: string
+  apiPlatforms: ApiPublishPlatform[]
   extensionJobs: ExtensionPublishJob[]
-  results: Array<{
-    platform: PublishPlatform
-    ok: boolean
-    message: string
-  }>
+  results: PublishDestinationResult[]
 }
 
 export type PublishPostActionResult =
