@@ -330,6 +330,47 @@ function runExtensionJob(job: ExtensionPublishJob) {
   })
 }
 
+function CharacterUsageRing({
+  characterCount,
+  maxCharacters,
+}: {
+  characterCount: number
+  maxCharacters: number
+}) {
+  const percentage = Math.min(100, (characterCount / maxCharacters) * 100)
+  const isOverLimit = characterCount > maxCharacters
+
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 16 16"
+      className="size-4 shrink-0 -rotate-90"
+    >
+      <circle
+        cx="8"
+        cy="8"
+        r="6"
+        fill="none"
+        strokeWidth="2.5"
+        className={isOverLimit ? "stroke-destructive/20" : "stroke-current/20"}
+      />
+      {percentage > 0 ? (
+        <circle
+          cx="8"
+          cy="8"
+          r="6"
+          pathLength="100"
+          fill="none"
+          strokeWidth="2.5"
+          strokeLinecap="round"
+          strokeDasharray={`${percentage} 100`}
+          className={isOverLimit ? "stroke-destructive" : "stroke-current"}
+        />
+      ) : null}
+    </svg>
+  )
+}
+
 export function PostEditor({
   connections,
   loginError,
@@ -980,13 +1021,18 @@ export function PostEditor({
               <span>플랫폼을 선택해 주세요.</span>
             ) : mostConstrainedCharacterLimit ? (
               <span
-                className={
+                className={cn(
+                  "flex items-center gap-1.5",
                   mostConstrainedCharacterLimit.characterCount >
-                  mostConstrainedCharacterLimit.maxCharacters
+                    mostConstrainedCharacterLimit.maxCharacters
                     ? "text-destructive"
                     : undefined
-                }
+                )}
               >
+                <CharacterUsageRing
+                  characterCount={mostConstrainedCharacterLimit.characterCount}
+                  maxCharacters={mostConstrainedCharacterLimit.maxCharacters}
+                />
                 {platformLimits[mostConstrainedCharacterLimit.platform].label}{" "}
                 기준 {mostConstrainedCharacterLimit.characterCount}/
                 {mostConstrainedCharacterLimit.maxCharacters}자
