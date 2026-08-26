@@ -1,3 +1,5 @@
+import parseTweet from "twitter-text/dist/parseTweet"
+
 import type { PublishPlatform } from "@/lib/types"
 
 export type PlatformLimit = {
@@ -13,22 +15,22 @@ export const platformLimits: Record<PublishPlatform, PlatformLimit> = {
     label: "Threads",
     maxCharacters: 500,
     maxImages: 20,
-    maxLinks: 1,
-    note: "첫 링크만 미리보기로 표시",
+    maxLinks: 5,
+    note: "링크는 원문 길이로 계산 · 첫 링크만 미리보기",
   },
   x: {
     label: "X",
     maxCharacters: 280,
     maxImages: 4,
     maxLinks: null,
-    note: "링크는 23자로 계산",
+    note: "CJK·이모지는 2자 · 링크는 23자로 계산",
   },
   discord: {
     label: "Discord",
     maxCharacters: 2_000,
     maxImages: 10,
     maxLinks: null,
-    note: "웹훅 메시지 기준",
+    note: "Unicode 코드 포인트 · 웹훅 메시지 기준",
   },
   naver_cafe: {
     label: "네이버 카페",
@@ -49,10 +51,10 @@ export const platformLimits: Record<PublishPlatform, PlatformLimit> = {
 const urlPattern = /https?:\/\/[^\s]+/g
 
 export function countCharacters(platform: PublishPlatform, text: string) {
-  if (platform !== "x") return Array.from(text).length
-  const urls = text.match(urlPattern) ?? []
-  const withoutUrls = text.replace(urlPattern, "")
-  return Array.from(withoutUrls).length + urls.length * 23
+  if (platform === "x") return parseTweet(text).weightedLength
+  // Threads applies its limit to UTF-16 code units, so non-BMP emoji use two.
+  if (platform === "threads") return text.length
+  return Array.from(text).length
 }
 
 export function countLinks(text: string) {

@@ -72,6 +72,10 @@ import {
   type EditorLinkFormValues,
 } from "@/lib/posts/editor-link"
 import {
+  editorHtmlToDiscordCounterText,
+  editorHtmlToSocialCounterText,
+} from "@/lib/posts/editor-output"
+import {
   isPostImageMimeType,
   postImageAccept,
   POST_IMAGE_MAX_BYTES,
@@ -93,8 +97,6 @@ const selectedPlatformsStorageKey = "sendbase:selected-post-platforms"
 const landingEditorTitle = "내 방송을 놓치는 팬이 없도록"
 const landingEditorContentHtml =
   "<p>내 방송 공지는 정말 시청자를 모으고 있나요?</p><p>열성 팬들만 보는 곳에 쓰고 있진 않나요?</p><p> </p><p>알림을 안 켜둔 시청자도, 팬카페에 없는 팬도 나를 놓치지 않게.</p><p>방송에 들어오기만을 기다리는 대신, 팬들의 피드에 자연스럽게 스며드세요.</p><p>완전 무료. 개인정보는 애초에 받지 않아요.</p>"
-const landingEditorPlainText =
-  "이번 주 금요일 저녁 8시에 새로운 콘텐츠와 함께 찾아갈게요.\n소소한 선물도 준비했으니, 놓치지 말고 함께해요!"
 const landingDefaultDestinations: PublishPlatform[] = [
   "threads",
   "x",
@@ -358,9 +360,6 @@ export function PostEditor({
   }, [connected, mode])
   const initialContentHtml =
     mode === "landing" ? landingEditorContentHtml : "<p></p>"
-  const [plainText, setPlainText] = useState(
-    mode === "landing" ? landingEditorPlainText : ""
-  )
   const isDestinationsReady = useSyncExternalStore(
     subscribeToHydration,
     getClientHydrationSnapshot,
@@ -403,26 +402,40 @@ export function PostEditor({
       destinations: defaultDestinations,
     },
   })
+  const title = useWatch({ control, name: "title" })
+  const contentHtml = useWatch({ control, name: "contentHtml" })
   const selectedDestinations = useWatch({ control, name: "destinations" })
   const shouldShowTitle = requiresPostTitle(selectedDestinations)
-  const strictestCharacterLimit = useMemo(() => {
-    let strictest: {
+  const mostConstrainedCharacterLimit = useMemo(() => {
+    const socialText = editorHtmlToSocialCounterText(contentHtml)
+    const discordText = editorHtmlToDiscordCounterText(contentHtml)
+    const discordContent = title
+      ? `**${title}**\n\n${discordText}`
+      : discordText
+    let mostConstrained: {
       platform: PublishPlatform
       maxCharacters: number
+      characterCount: number
     } | null = null
 
     for (const platform of selectedDestinations) {
       const maxCharacters = platformLimits[platform].maxCharacters
+      if (maxCharacters === null) continue
+
+      const characterCount = countCharacters(
+        platform,
+        platform === "discord" ? discordContent : socialText
+      )
       if (
-        maxCharacters !== null &&
-        (strictest === null || maxCharacters < strictest.maxCharacters)
-      ) {
-        strictest = { platform, maxCharacters }
-      }
+        mostConstrained === null ||
+        characterCount / maxCharacters >
+          mostConstrained.characterCount / mostConstrained.maxCharacters
+      )
+        mostConstrained = { platform, maxCharacters, characterCount }
     }
 
-    return strictest
-  }, [selectedDestinations])
+    return mostConstrained
+  }, [contentHtml, selectedDestinations, title])
 
   useLayoutEffect(() => {
     if (mode === "landing") return
@@ -488,7 +501,6 @@ export function PostEditor({
     onUpdate: ({ editor: currentEditor }) => {
       const html = currentEditor.getHTML()
       setValue("contentHtml", html, { shouldDirty: true, shouldValidate: true })
-      setPlainText(currentEditor.getText({ blockSeparator: "\n" }))
     },
   })
 
@@ -520,7 +532,6 @@ export function PostEditor({
           destinations: detail.destinations,
         })
         editor?.commands.setContent(detail.contentHtml, { emitUpdate: false })
-        setPlainText(detail.contentText)
         requestAnimationFrame(() => {
           editor?.commands.focus("end")
           editorContainerRef.current?.scrollIntoView({
@@ -728,7 +739,6 @@ export function PostEditor({
           destinations: values.destinations,
         })
         editor?.commands.setContent("<p></p>")
-        setPlainText("")
       } catch (error) {
         toast.error(
           error instanceof Error ? error.message : "게시하지 못했습니다."
@@ -968,18 +978,18 @@ export function PostEditor({
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
             {selectedDestinations.length === 0 ? (
               <span>플랫폼을 선택해 주세요.</span>
-            ) : strictestCharacterLimit ? (
+            ) : mostConstrainedCharacterLimit ? (
               <span
                 className={
-                  countCharacters(strictestCharacterLimit.platform, plainText) >
-                  strictestCharacterLimit.maxCharacters
+                  mostConstrainedCharacterLimit.characterCount >
+                  mostConstrainedCharacterLimit.maxCharacters
                     ? "text-destructive"
                     : undefined
                 }
               >
-                {platformLimits[strictestCharacterLimit.platform].label} 기준{" "}
-                {countCharacters(strictestCharacterLimit.platform, plainText)}/
-                {strictestCharacterLimit.maxCharacters}자
+                {platformLimits[mostConstrainedCharacterLimit.platform].label}{" "}
+                기준 {mostConstrainedCharacterLimit.characterCount}/
+                {mostConstrainedCharacterLimit.maxCharacters}자
               </span>
             ) : (
               <span>글자 수 제한 없음</span>

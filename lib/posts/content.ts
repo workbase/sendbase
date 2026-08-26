@@ -1,5 +1,9 @@
 import sanitizeHtml from "sanitize-html"
 
+import {
+  replaceEditorFormattingWithDiscordMarkdown,
+  replaceEditorLinksWithUrls,
+} from "./editor-output"
 import type { PostImage } from "@/lib/types"
 
 function sanitizeEditorHtmlWithImageUrls(
@@ -115,20 +119,7 @@ export function htmlToPlainText(html: string) {
  * Replaces custom anchors with their URLs for plain-text APIs.
  */
 export function htmlToPlainTextWithUrls(html: string) {
-  const withVisibleUrls = html.replace(
-    /<a\s+[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/gi,
-    (_match, href: string) => htmlToPlainText(href)
-  )
-
-  return htmlToPlainText(withVisibleUrls)
-}
-
-function escapeDiscordLinkLabel(value: string) {
-  return value.replace(/[\\[\]]/g, "\\\\$&")
-}
-
-function escapeDiscordLinkUrl(value: string) {
-  return value.replace(/\\/g, "\\\\\\\\").replace(/\)/g, "\\\\)")
+  return htmlToPlainText(replaceEditorLinksWithUrls(html))
 }
 
 /**
@@ -136,22 +127,7 @@ function escapeDiscordLinkUrl(value: string) {
  * Alignment has no Discord message equivalent and is intentionally omitted.
  */
 export function htmlToDiscordMarkdown(html: string) {
-  const withDiscordMarkdown = html
-    .replace(
-      /<a\s+[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/gi,
-      (_match, href: string, label: string) =>
-        `[${escapeDiscordLinkLabel(label)}](${escapeDiscordLinkUrl(href)})`
-    )
-    .replace(/<(strong|b)>/gi, "**")
-    .replace(/<\/(strong|b)>/gi, "**")
-    .replace(/<(em|i)>/gi, "*")
-    .replace(/<\/(em|i)>/gi, "*")
-    .replace(/<u>/gi, "__")
-    .replace(/<\/u>/gi, "__")
-    .replace(/<s>/gi, "~~")
-    .replace(/<\/s>/gi, "~~")
-
-  return htmlToPlainText(withDiscordMarkdown)
+  return htmlToPlainText(replaceEditorFormattingWithDiscordMarkdown(html))
 }
 
 export function imageUrlsFromHtml(html: string) {
