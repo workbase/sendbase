@@ -49,6 +49,11 @@ export type PostDetail = PostHistoryItem & {
   contentHtml: string
   contentText: string
   imageUrls: string[]
+  threadReplies: PostThreadReply[]
+}
+
+export type PostThreadReply = {
+  contentHtml: string
 }
 
 export type PlatformConnection = {

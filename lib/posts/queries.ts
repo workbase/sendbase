@@ -28,6 +28,10 @@ type DestinationRow = {
   external_url: string | null
 }
 
+type StoredThreadReply = {
+  contentHtml: string
+}
+
 export type PostHistoryRow = {
   id: string
   title: string
@@ -81,6 +85,18 @@ function postImages(value: unknown): PostImage[] {
       typeof image.height === "number" &&
       typeof image.alt === "string"
       ? [image as PostImage]
+      : []
+  })
+}
+
+function postThreadReplies(value: unknown): StoredThreadReply[] {
+  if (!Array.isArray(value)) return []
+
+  return value.flatMap((item) => {
+    if (!item || typeof item !== "object") return []
+    const reply = item as Record<string, unknown>
+    return typeof reply.contentHtml === "string"
+      ? [{ contentHtml: reply.contentHtml }]
       : []
   })
 }
@@ -169,7 +185,7 @@ export const getPostDetail = cache(
       supabase
         .from("posts")
         .select(
-          "id, title, content_html, content_text, image_urls, image_metadata, status, updated_at"
+          "id, title, content_html, content_text, image_urls, image_metadata, thread_replies, status, updated_at"
         )
         .eq("id", postId)
         .eq("user_id", userId)
@@ -192,6 +208,7 @@ export const getPostDetail = cache(
       contentHtml: post.content_html as string,
       contentText: post.content_text as string,
       imageUrls: post.image_urls as string[],
+      threadReplies: postThreadReplies(post.thread_replies),
       contentPreview: (post.content_text as string).slice(
         0,
         POST_PREVIEW_LENGTH

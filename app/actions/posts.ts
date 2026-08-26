@@ -10,7 +10,7 @@ import {
   countLinks,
   platformLimits,
 } from "@/lib/platforms/limits"
-import { publishToApiPlatform } from "@/lib/platforms/publish"
+import { createApiPlatformPublisher } from "@/lib/platforms/publish"
 import {
   htmlToDiscordMarkdown,
   htmlToPlainText,
@@ -45,7 +45,14 @@ type PersistPostResult =
       postId: string
       html: string
       imageUrls: string[]
+      threadReplies: PreparedThreadReply[]
     }
+
+type PreparedThreadReply = {
+  html: string
+  text: string
+  imageUrls: string[]
+}
 
 export async function getOlderPostsAction(before?: string) {
   const user = await requireUser()
@@ -62,8 +69,10 @@ function validateLimits(
   platforms: PublishPlatform[],
   text: string,
   discordContent: string,
-  images: string[]
+  images: string[],
+  contextLabel?: string
 ) {
+  const prefix = contextLabel ? `${contextLabel}: ` : ""
   for (const platform of platforms) {
     const limit = platformLimits[platform]
     const platformText = platform === "discord" ? discordContent : text
@@ -72,17 +81,17 @@ function validateLimits(
       countCharacters(platform, platformText) > limit.maxCharacters
     ) {
       throw new Error(
-        `${limit.label} 글자 수 제한(${limit.maxCharacters}자)을 초과했습니다.`
+        `${prefix}${limit.label} 글자 수 제한(${limit.maxCharacters}자)을 초과했습니다.`
       )
     }
     if (limit.maxImages && images.length > limit.maxImages) {
       throw new Error(
-        `${limit.label} 이미지 제한(${limit.maxImages}개)을 초과했습니다.`
+        `${prefix}${limit.label} 이미지 제한(${limit.maxImages}개)을 초과했습니다.`
       )
     }
     if (limit.maxLinks && countLinks(text) > limit.maxLinks) {
       throw new Error(
-        `${limit.label} 링크 제한(${limit.maxLinks}개)을 초과했습니다.`
+        `${prefix}${limit.label} 링크 제한(${limit.maxLinks}개)을 초과했습니다.`
       )
     }
   }
@@ -90,12 +99,21 @@ function validateLimits(
 
 async function persistPost(
   userId: string,
-  input: z.infer<typeof postFormSchema>
+  input: z.infer<typeof postFormSchema>,
+  threadReplies: PreparedThreadReply[]
 ): Promise<PersistPostResult> {
   const html = sanitizeEditorHtml(input.contentHtml)
-  const text = htmlToPlainText(html)
+  const text = [
+    htmlToPlainText(html),
+    ...threadReplies.map((reply) => htmlToPlainText(reply.html)),
+  ]
+    .filter(Boolean)
+    .join("\n\n")
   const imageUrls = imageUrlsFromHtml(html)
-  const imageMetadata = imageMetadataFromHtml(html)
+  const imageMetadata = [
+    ...imageMetadataFromHtml(html),
+    ...threadReplies.flatMap((reply) => imageMetadataFromHtml(reply.html)),
+  ]
   const supabase = createAdminClient()
   const { data, error } = await supabase.rpc("create_post_for_publishing", {
     p_user_id: userId,
@@ -105,6 +123,10 @@ async function persistPost(
     p_image_urls: imageUrls,
     p_image_metadata: imageMetadata,
     p_destinations: input.destinations,
+    p_enforce_x_daily_limit: process.env.NODE_ENV === "production",
+    p_thread_replies: threadReplies.map((reply) => ({
+      contentHtml: reply.html,
+    })),
   })
   if (error) {
     if (error.message === X_DAILY_POST_LIMIT_MESSAGE) {
@@ -114,7 +136,7 @@ async function persistPost(
   }
 
   const postId = data as string
-  return { ok: true, postId, html, imageUrls }
+  return { ok: true, postId, html, imageUrls, threadReplies }
 }
 
 export async function publishPostAction(
@@ -136,11 +158,36 @@ export async function publishPostAction(
   if (!socialText && images.length === 0)
     throw new Error("본문 또는 이미지를 추가해 주세요.")
   validateLimits(parsed.data.destinations, socialText, discordContent, images)
+  const threadPlatforms = parsed.data.destinations.filter(
+    (platform): platform is "threads" | "x" =>
+      platform === "threads" || platform === "x"
+  )
+  const threadReplies =
+    threadPlatforms.length === 0
+      ? []
+      : parsed.data.threadReplies.map((reply, index) => {
+          const html = sanitizeEditorHtml(reply.contentHtml)
+          const text = htmlToPlainTextWithUrls(html)
+          const replyImages = imageUrlsFromHtml(html)
+          if (!text && replyImages.length === 0) {
+            throw new Error(
+              `답글 ${index + 1}에 내용 또는 이미지를 추가해 주세요.`
+            )
+          }
+          validateLimits(
+            threadPlatforms,
+            text,
+            text,
+            replyImages,
+            `답글 ${index + 1}`
+          )
+          return { html, text, imageUrls: replyImages }
+        })
   const soopHtml = parsed.data.destinations.includes("soop")
     ? await preparePostHtmlForSoop(user.id, sanitized)
     : null
 
-  const persistedPost = await persistPost(user.id, parsed.data)
+  const persistedPost = await persistPost(user.id, parsed.data, threadReplies)
   if (!persistedPost.ok) {
     return { ok: false, error: persistedPost.error }
   }
@@ -213,13 +260,44 @@ export async function publishPostAction(
     }
 
     try {
-      const published = await publishToApiPlatform(platform, {
-        userId: user.id,
+      await supabase
+        .from("post_destinations")
+        .update({ status: "publishing", updated_at: new Date().toISOString() })
+        .eq("post_id", postId)
+        .eq("platform", platform)
+      const publishToPlatform = await createApiPlatformPublisher(
+        platform,
+        user.id
+      )
+      const published = await publishToPlatform({
         title: parsed.data.title,
         text: socialText,
         discordText: discordContent,
         imageUrls,
       })
+      if (platform === "threads" || platform === "x") {
+        await supabase
+          .from("post_destinations")
+          .update({
+            external_post_id: published.id,
+            external_url: published.url,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("post_id", postId)
+          .eq("platform", platform)
+
+        let replyToId = published.id
+        for (const reply of persistedPost.threadReplies) {
+          const replyResult = await publishToPlatform({
+            title: "",
+            text: reply.text,
+            discordText: reply.text,
+            imageUrls: reply.imageUrls,
+            replyToId,
+          })
+          replyToId = replyResult.id
+        }
+      }
       await supabase
         .from("post_destinations")
         .update({

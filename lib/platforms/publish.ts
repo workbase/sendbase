@@ -2,12 +2,12 @@ import { decryptToken, encryptToken } from "@/lib/auth/crypto"
 import { createAdminClient } from "@/lib/supabase/admin"
 import type { PublishPlatform } from "@/lib/types"
 
-type PublishInput = {
-  userId: string
+type PublishContent = {
   title: string
   text: string
   discordText: string
   imageUrls: string[]
+  replyToId?: string
 }
 
 type PublishOutput = {
@@ -386,19 +386,25 @@ async function threadsPublishOutput(
   }
 }
 
-async function publishThreads(input: PublishInput) {
-  const connection = await getConnection(input.userId, "threads")
+async function publishThreads(
+  input: PublishContent,
+  connection: ConnectionRecord
+) {
   if (!connection.accessToken || !connection.externalAccountId) {
     throw new Error("Threads 연결 정보가 완전하지 않습니다.")
   }
   const accessToken = connection.accessToken
   const externalAccountId = connection.externalAccountId
+  const replyParams: Record<string, string> = input.replyToId
+    ? { reply_to_id: input.replyToId }
+    : {}
 
   if (input.imageUrls.length === 0) {
     const id = await createThreadsContainer(externalAccountId, accessToken, {
       media_type: "TEXT",
       text: input.text,
       auto_publish_text: "true",
+      ...replyParams,
     })
     return threadsPublishOutput(id, accessToken)
   }
@@ -412,6 +418,7 @@ async function publishThreads(input: PublishInput) {
         media_type: "IMAGE",
         image_url: input.imageUrls[0],
         text: input.text,
+        ...replyParams,
       }
     )
   } else {
@@ -434,6 +441,7 @@ async function publishThreads(input: PublishInput) {
         media_type: "CAROUSEL",
         children: children.join(","),
         text: input.text,
+        ...replyParams,
       }
     )
   }
@@ -473,8 +481,7 @@ async function uploadXImage(accessToken: string, imageUrl: string) {
   return id
 }
 
-async function publishX(input: PublishInput) {
-  const connection = await getConnection(input.userId, "x")
+async function publishX(input: PublishContent, connection: ConnectionRecord) {
   if (!connection.accessToken) throw new Error("X 계정을 다시 연결해 주세요.")
   const mediaIds = await Promise.all(
     input.imageUrls.map((url) => uploadXImage(connection.accessToken!, url))
@@ -488,6 +495,9 @@ async function publishX(input: PublishInput) {
     body: JSON.stringify({
       text: input.text,
       ...(mediaIds.length > 0 ? { media: { media_ids: mediaIds } } : {}),
+      ...(input.replyToId
+        ? { reply: { in_reply_to_tweet_id: input.replyToId } }
+        : {}),
     }),
     cache: "no-store",
   })
@@ -497,8 +507,10 @@ async function publishX(input: PublishInput) {
   return { id, url: `https://x.com/i/web/status/${id}` }
 }
 
-async function publishDiscord(input: PublishInput) {
-  const connection = await getConnection(input.userId, "discord")
+async function publishDiscord(
+  input: PublishContent,
+  connection: ConnectionRecord
+) {
   const webhookUrl = connection.settings.webhookUrl
   if (
     !webhookUrl ||
@@ -552,12 +564,21 @@ async function publishDiscord(input: PublishInput) {
   return { id, url }
 }
 
-export async function publishToApiPlatform(
+export async function createApiPlatformPublisher(
   platform: PublishPlatform,
-  input: PublishInput
-): Promise<PublishOutput> {
-  if (platform === "threads") return publishThreads(input)
-  if (platform === "x") return publishX(input)
-  if (platform === "discord") return publishDiscord(input)
+  userId: string
+): Promise<(input: PublishContent) => Promise<PublishOutput>> {
+  if (platform === "threads") {
+    const connection = await getConnection(userId, platform)
+    return (input) => publishThreads(input, connection)
+  }
+  if (platform === "x") {
+    const connection = await getConnection(userId, platform)
+    return (input) => publishX(input, connection)
+  }
+  if (platform === "discord") {
+    const connection = await getConnection(userId, platform)
+    return (input) => publishDiscord(input, connection)
+  }
   throw new Error("브라우저 확장 프로그램으로 게시해야 하는 플랫폼입니다.")
 }

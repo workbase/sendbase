@@ -14,6 +14,7 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import {
   EditorContent,
   Extension,
+  type Editor as TiptapEditor,
   useEditor,
   useEditorState,
 } from "@tiptap/react"
@@ -35,10 +36,12 @@ import {
   ItalicIcon,
   Link2Icon,
   LoaderCircleIcon,
+  PlusIcon,
   StrikethroughIcon,
+  Trash2Icon,
   UnderlineIcon,
 } from "lucide-react"
-import { Controller, useForm, useWatch } from "react-hook-form"
+import { Controller, useFieldArray, useForm, useWatch } from "react-hook-form"
 
 import {
   getPostDetailAction,
@@ -141,6 +144,43 @@ const OptimizedImage = Image.extend({
     }
   },
 })
+
+const editorContentClassName =
+  "min-h-[min(20rem,33.333dvh)] px-7 py-4 text-base leading-8 outline-none sm:min-h-[min(24rem,33.333dvh)] sm:px-10 sm:py-5 [&_a]:text-foreground [&_a]:underline [&_a]:underline-offset-4 [&_img]:my-6 [&_img]:h-auto [&_img]:w-auto [&_img]:max-h-96 [&_img]:max-w-full [&_img]:rounded-md [&_p]:my-2"
+const replyEditorContentClassName =
+  "min-h-40 px-7 py-4 text-base leading-8 outline-none sm:px-10 sm:py-5 [&_a]:text-foreground [&_a]:underline [&_a]:underline-offset-4 [&_img]:my-6 [&_img]:h-auto [&_img]:w-auto [&_img]:max-h-96 [&_img]:max-w-full [&_img]:rounded-md [&_p]:my-2"
+const editorContentWrapperClassName =
+  "[&_.tiptap_p.is-editor-empty:first-child::before]:pointer-events-none [&_.tiptap_p.is-editor-empty:first-child::before]:float-left [&_.tiptap_p.is-editor-empty:first-child::before]:h-0 [&_.tiptap_p.is-editor-empty:first-child::before]:text-muted-foreground/60 [&_.tiptap_p.is-editor-empty:first-child::before]:content-[attr(data-placeholder)]"
+
+function createEditorExtensions(placeholder: string) {
+  return [
+    StarterKit.configure({
+      link: false,
+      underline: false,
+      heading: false,
+      blockquote: false,
+      bulletList: false,
+      orderedList: false,
+      listItem: false,
+      code: false,
+      codeBlock: false,
+      horizontalRule: false,
+    }),
+    ResetMarksOnEnter,
+    Underline,
+    NonInclusiveLink.configure({
+      openOnClick: false,
+      autolink: true,
+      defaultProtocol: "https",
+    }),
+    OptimizedImage.configure({ allowBase64: false, inline: false }),
+    TextAlign.configure({
+      types: ["paragraph"],
+      alignments: ["left", "center", "right"],
+    }),
+    Placeholder.configure({ placeholder }),
+  ]
+}
 
 type LinkDialogState = {
   open: boolean
@@ -371,6 +411,158 @@ function CharacterUsageRing({
   )
 }
 
+type CharacterLimitInfo = {
+  platform: PublishPlatform
+  maxCharacters: number
+  characterCount: number
+}
+
+function getMostConstrainedCharacterLimit(
+  contentHtml: string,
+  destinations: readonly PublishPlatform[],
+  title = ""
+): CharacterLimitInfo | null {
+  const socialText = editorHtmlToSocialCounterText(contentHtml)
+  const discordText = editorHtmlToDiscordCounterText(contentHtml)
+  const discordContent = title ? `**${title}**\n\n${discordText}` : discordText
+  let mostConstrained: CharacterLimitInfo | null = null
+
+  for (const platform of destinations) {
+    const maxCharacters = platformLimits[platform].maxCharacters
+    if (maxCharacters === null) continue
+
+    const characterCount = countCharacters(
+      platform,
+      platform === "discord" ? discordContent : socialText
+    )
+    if (
+      mostConstrained === null ||
+      characterCount / maxCharacters >
+        mostConstrained.characterCount / mostConstrained.maxCharacters
+    ) {
+      mostConstrained = { platform, maxCharacters, characterCount }
+    }
+  }
+
+  return mostConstrained
+}
+
+function CharacterLimitStatus({
+  destinations,
+  limit,
+}: {
+  destinations: readonly PublishPlatform[]
+  limit: CharacterLimitInfo | null
+}) {
+  if (destinations.length === 0) return <span>플랫폼을 선택해 주세요.</span>
+  if (!limit) return <span>글자 수 제한 없음</span>
+
+  return (
+    <span
+      className={cn(
+        "flex items-center gap-1.5",
+        limit.characterCount > limit.maxCharacters
+          ? "text-destructive"
+          : undefined
+      )}
+    >
+      <CharacterUsageRing
+        characterCount={limit.characterCount}
+        maxCharacters={limit.maxCharacters}
+      />
+      {platformLimits[limit.platform].label} 기준 {limit.characterCount}/
+      {limit.maxCharacters}자
+    </span>
+  )
+}
+
+function ThreadReplyEditor({
+  editorId,
+  index,
+  contentHtml,
+  errorMessage,
+  limit,
+  destinations,
+  onChange,
+  onFocus,
+  onReady,
+  onDestroy,
+  onRemove,
+}: {
+  editorId: string
+  index: number
+  contentHtml: string
+  errorMessage?: string
+  limit: CharacterLimitInfo | null
+  destinations: readonly PublishPlatform[]
+  onChange: (html: string) => void
+  onFocus: (editor: TiptapEditor) => void
+  onReady: (editorId: string, editor: TiptapEditor) => void
+  onDestroy: (editorId: string, editor: TiptapEditor) => void
+  onRemove: () => void
+}) {
+  const onChangeRef = useRef(onChange)
+  const onFocusRef = useRef(onFocus)
+
+  useLayoutEffect(() => {
+    onChangeRef.current = onChange
+    onFocusRef.current = onFocus
+  }, [onChange, onFocus])
+
+  const editor = useEditor({
+    immediatelyRender: false,
+    extensions: createEditorExtensions("답글을 작성해 보세요…"),
+    content: contentHtml,
+    editorProps: { attributes: { class: replyEditorContentClassName } },
+    onFocus: ({ editor: currentEditor }) => onFocusRef.current(currentEditor),
+    onUpdate: ({ editor: currentEditor }) =>
+      onChangeRef.current(currentEditor.getHTML()),
+  })
+
+  useEffect(() => {
+    if (!editor) return
+    onReady(editorId, editor)
+    const focusFrame = requestAnimationFrame(() => editor.commands.focus("end"))
+    return () => {
+      cancelAnimationFrame(focusFrame)
+      onDestroy(editorId, editor)
+    }
+  }, [editor, editorId, onDestroy, onReady])
+
+  useEffect(() => {
+    if (editor && editor.getHTML() !== contentHtml) {
+      editor.commands.setContent(contentHtml, { emitUpdate: false })
+    }
+  }, [contentHtml, editor])
+
+  return (
+    <section className="border-t" aria-label={`답글 ${index + 1}`}>
+      <div className="flex items-center justify-between px-7 pt-5 sm:px-10">
+        <span className="text-sm font-medium">답글 {index + 1}</span>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          aria-label={`답글 ${index + 1} 삭제`}
+          onClick={onRemove}
+        >
+          <Trash2Icon />
+        </Button>
+      </div>
+      <EditorContent
+        editor={editor}
+        className={cn("min-h-40", editorContentWrapperClassName)}
+      />
+      <div className="px-7 pt-2 pb-5 text-xs text-muted-foreground sm:px-10">
+        <CharacterLimitStatus destinations={destinations} limit={limit} />
+        {errorMessage ? (
+          <p className="mt-2 text-destructive">{errorMessage}</p>
+        ) : null}
+      </div>
+    </section>
+  )
+}
+
 export function PostEditor({
   connections,
   loginError,
@@ -416,9 +608,12 @@ export function PostEditor({
   const [linkDialog, setLinkDialog] = useState<LinkDialogState>(
     initialLinkDialogState
   )
+  const [activeEditor, setActiveEditor] = useState<TiptapEditor | null>(null)
   const imageInputRef = useRef<HTMLInputElement>(null)
   const editorContainerRef = useRef<HTMLDivElement>(null)
   const previewImageUrlRef = useRef<string | null>(null)
+  const linkEditorRef = useRef<TiptapEditor | null>(null)
+  const replyEditorsRef = useRef(new Map<string, TiptapEditor>())
 
   useEffect(() => {
     return () => {
@@ -441,42 +636,43 @@ export function PostEditor({
       title: mode === "landing" ? landingEditorTitle : "",
       contentHtml: initialContentHtml,
       destinations: defaultDestinations,
+      threadReplies: [],
     },
   })
+  const {
+    fields: threadReplyFields,
+    append: appendThreadReply,
+    remove: removeThreadReply,
+  } = useFieldArray({ control, name: "threadReplies" })
   const title = useWatch({ control, name: "title" })
   const contentHtml = useWatch({ control, name: "contentHtml" })
   const selectedDestinations = useWatch({ control, name: "destinations" })
+  const threadReplies = useWatch({ control, name: "threadReplies" })
   const shouldShowTitle = requiresPostTitle(selectedDestinations)
-  const mostConstrainedCharacterLimit = useMemo(() => {
-    const socialText = editorHtmlToSocialCounterText(contentHtml)
-    const discordText = editorHtmlToDiscordCounterText(contentHtml)
-    const discordContent = title
-      ? `**${title}**\n\n${discordText}`
-      : discordText
-    let mostConstrained: {
-      platform: PublishPlatform
-      maxCharacters: number
-      characterCount: number
-    } | null = null
-
-    for (const platform of selectedDestinations) {
-      const maxCharacters = platformLimits[platform].maxCharacters
-      if (maxCharacters === null) continue
-
-      const characterCount = countCharacters(
-        platform,
-        platform === "discord" ? discordContent : socialText
-      )
-      if (
-        mostConstrained === null ||
-        characterCount / maxCharacters >
-          mostConstrained.characterCount / mostConstrained.maxCharacters
-      )
-        mostConstrained = { platform, maxCharacters, characterCount }
-    }
-
-    return mostConstrained
-  }, [contentHtml, selectedDestinations, title])
+  const threadDestinations = useMemo(
+    () =>
+      selectedDestinations.filter(
+        (platform): platform is "threads" | "x" =>
+          platform === "threads" || platform === "x"
+      ),
+    [selectedDestinations]
+  )
+  const mostConstrainedCharacterLimit = useMemo(
+    () =>
+      getMostConstrainedCharacterLimit(
+        contentHtml,
+        selectedDestinations,
+        title
+      ),
+    [contentHtml, selectedDestinations, title]
+  )
+  const threadReplyCharacterLimits = useMemo(
+    () =>
+      threadReplies.map((reply) =>
+        getMostConstrainedCharacterLimit(reply.contentHtml, threadDestinations)
+      ),
+    [threadDestinations, threadReplies]
+  )
 
   useLayoutEffect(() => {
     if (mode === "landing") return
@@ -496,38 +692,13 @@ export function PostEditor({
 
   const editor = useEditor({
     immediatelyRender: false,
-    extensions: [
-      StarterKit.configure({
-        link: false,
-        underline: false,
-        heading: false,
-        blockquote: false,
-        bulletList: false,
-        orderedList: false,
-        listItem: false,
-        code: false,
-        codeBlock: false,
-        horizontalRule: false,
-      }),
-      ResetMarksOnEnter,
-      Underline,
-      NonInclusiveLink.configure({
-        openOnClick: false,
-        autolink: true,
-        defaultProtocol: "https",
-      }),
-      OptimizedImage.configure({ allowBase64: false, inline: false }),
-      TextAlign.configure({
-        types: ["paragraph"],
-        alignments: ["left", "center", "right"],
-      }),
-      Placeholder.configure({
-        placeholder: "여러 플랫폼에 전할 이야기를 작성해 보세요…",
-      }),
-    ],
+    extensions: createEditorExtensions(
+      "여러 플랫폼에 전할 이야기를 작성해 보세요…"
+    ),
     content: initialContentHtml,
     onCreate: ({ editor: currentEditor }) => {
       if (mode === "landing") return
+      setActiveEditor(currentEditor)
 
       requestAnimationFrame(() => {
         currentEditor.commands.focus("end")
@@ -535,10 +706,10 @@ export function PostEditor({
     },
     editorProps: {
       attributes: {
-        class:
-          "min-h-[min(20rem,33.333dvh)] px-7 py-4 text-base leading-8 outline-none sm:min-h-[min(24rem,33.333dvh)] sm:px-10 sm:py-5 [&_a]:text-foreground [&_a]:underline [&_a]:underline-offset-4 [&_img]:my-6 [&_img]:h-auto [&_img]:w-auto [&_img]:max-h-96 [&_img]:max-w-full [&_img]:rounded-md [&_p]:my-2",
+        class: editorContentClassName,
       },
     },
+    onFocus: ({ editor: currentEditor }) => setActiveEditor(currentEditor),
     onUpdate: ({ editor: currentEditor }) => {
       const html = currentEditor.getHTML()
       setValue("contentHtml", html, { shouldDirty: true, shouldValidate: true })
@@ -546,7 +717,7 @@ export function PostEditor({
   })
 
   const editorState = useEditorState({
-    editor,
+    editor: activeEditor,
     selector: ({ editor: currentEditor }) => ({
       bold: currentEditor?.isActive("bold") ?? false,
       italic: currentEditor?.isActive("italic") ?? false,
@@ -571,6 +742,7 @@ export function PostEditor({
           title: detail.editorTitle,
           contentHtml: detail.contentHtml,
           destinations: detail.destinations,
+          threadReplies: detail.threadReplies,
         })
         editor?.commands.setContent(detail.contentHtml, { emitUpdate: false })
         requestAnimationFrame(() => {
@@ -601,20 +773,43 @@ export function PostEditor({
     return () => postHistory.setPostLoader(null)
   }, [loadPostIntoEditor, postHistory])
 
-  function openLinkDialog() {
-    if (!editor) return
+  const registerReplyEditor = useCallback(
+    (editorId: string, replyEditor: TiptapEditor) => {
+      replyEditorsRef.current.set(editorId, replyEditor)
+    },
+    []
+  )
 
-    const canRemove = editor.isActive("link")
-    if (canRemove && editor.state.selection.empty) {
-      editor.commands.extendMarkRange("link")
+  const unregisterReplyEditor = useCallback(
+    (editorId: string, replyEditor: TiptapEditor) => {
+      replyEditorsRef.current.delete(editorId)
+      setActiveEditor((current) => (current === replyEditor ? editor : current))
+    },
+    [editor]
+  )
+
+  function deleteThreadReply(index: number, editorId: string) {
+    const replyEditor = replyEditorsRef.current.get(editorId)
+    if (replyEditor && activeEditor === replyEditor) setActiveEditor(editor)
+    removeThreadReply(index)
+  }
+
+  function openLinkDialog() {
+    const currentEditor = activeEditor ?? editor
+    if (!currentEditor) return
+    linkEditorRef.current = currentEditor
+
+    const canRemove = currentEditor.isActive("link")
+    if (canRemove && currentEditor.state.selection.empty) {
+      currentEditor.commands.extendMarkRange("link")
     }
 
-    const { from, to, empty } = editor.state.selection
+    const { from, to, empty } = currentEditor.state.selection
     const selectedText = empty
       ? ""
-      : editor.state.doc.textBetween(from, to, " ").trim()
+      : currentEditor.state.doc.textBetween(from, to, " ").trim()
     const hasSelectedText = selectedText.length > 0
-    const href = editor.getAttributes("link").href
+    const href = currentEditor.getAttributes("link").href
 
     setLinkDialog({
       open: true,
@@ -631,10 +826,11 @@ export function PostEditor({
 
   function closeLinkDialog(restoreSelection: boolean) {
     setLinkDialog((current) => ({ ...current, open: false }))
-    if (!restoreSelection || !editor) return
+    const currentEditor = linkEditorRef.current
+    if (!restoreSelection || !currentEditor) return
 
     requestAnimationFrame(() => {
-      editor
+      currentEditor
         .chain()
         .focus()
         .setTextSelection({ from: linkDialog.from, to: linkDialog.to })
@@ -643,10 +839,11 @@ export function PostEditor({
   }
 
   function applyLink(values: EditorLinkFormValues) {
-    if (!editor) return
+    const currentEditor = linkEditorRef.current
+    if (!currentEditor) return
 
     const href = normalizeEditorLinkUrl(values.url)
-    const chain = editor
+    const chain = currentEditor
       .chain()
       .focus()
       .setTextSelection({ from: linkDialog.from, to: linkDialog.to })
@@ -668,9 +865,10 @@ export function PostEditor({
   }
 
   function removeLink() {
-    if (!editor) return
+    const currentEditor = linkEditorRef.current
+    if (!currentEditor) return
 
-    editor
+    currentEditor
       .chain()
       .focus()
       .setTextSelection({ from: linkDialog.from, to: linkDialog.to })
@@ -695,7 +893,7 @@ export function PostEditor({
       }
       const previewUrl = URL.createObjectURL(file)
       previewImageUrlRef.current = previewUrl
-      editor
+      ;(activeEditor ?? editor)
         ?.chain()
         .focus()
         .setImage({ src: previewUrl, alt: file.name })
@@ -708,7 +906,7 @@ export function PostEditor({
       form.set("file", file)
       const { url, thumbnailUrl, width, height } =
         await uploadPostImageAction(form)
-      editor
+      ;(activeEditor ?? editor)
         ?.chain()
         .focus()
         .insertContent({
@@ -778,6 +976,7 @@ export function PostEditor({
           title: "",
           contentHtml: "<p></p>",
           destinations: values.destinations,
+          threadReplies: [],
         })
         editor?.commands.setContent("<p></p>")
       } catch (error) {
@@ -787,6 +986,8 @@ export function PostEditor({
       }
     })
   })
+
+  const toolbarEditor = activeEditor ?? editor
 
   return (
     <div ref={editorContainerRef} className="mx-auto w-full max-w-3xl">
@@ -884,28 +1085,30 @@ export function PostEditor({
           <ToolbarButton
             label="굵게"
             active={editorState?.bold}
-            onClick={() => editor?.chain().focus().toggleBold().run()}
+            onClick={() => toolbarEditor?.chain().focus().toggleBold().run()}
           >
             <BoldIcon />
           </ToolbarButton>
           <ToolbarButton
             label="기울임"
             active={editorState?.italic}
-            onClick={() => editor?.chain().focus().toggleItalic().run()}
+            onClick={() => toolbarEditor?.chain().focus().toggleItalic().run()}
           >
             <ItalicIcon />
           </ToolbarButton>
           <ToolbarButton
             label="밑줄"
             active={editorState?.underline}
-            onClick={() => editor?.chain().focus().toggleUnderline().run()}
+            onClick={() =>
+              toolbarEditor?.chain().focus().toggleUnderline().run()
+            }
           >
             <UnderlineIcon />
           </ToolbarButton>
           <ToolbarButton
             label="취소선"
             active={editorState?.strike}
-            onClick={() => editor?.chain().focus().toggleStrike().run()}
+            onClick={() => toolbarEditor?.chain().focus().toggleStrike().run()}
           >
             <StrikethroughIcon />
           </ToolbarButton>
@@ -938,28 +1141,34 @@ export function PostEditor({
           <ToolbarButton
             label="왼쪽 정렬"
             active={editorState?.alignLeft}
-            onClick={() => editor?.chain().focus().setTextAlign("left").run()}
+            onClick={() =>
+              toolbarEditor?.chain().focus().setTextAlign("left").run()
+            }
           >
             <AlignLeftIcon />
           </ToolbarButton>
           <ToolbarButton
             label="가운데 정렬"
             active={editorState?.alignCenter}
-            onClick={() => editor?.chain().focus().setTextAlign("center").run()}
+            onClick={() =>
+              toolbarEditor?.chain().focus().setTextAlign("center").run()
+            }
           >
             <AlignCenterIcon />
           </ToolbarButton>
           <ToolbarButton
             label="오른쪽 정렬"
             active={editorState?.alignRight}
-            onClick={() => editor?.chain().focus().setTextAlign("right").run()}
+            onClick={() =>
+              toolbarEditor?.chain().focus().setTextAlign("right").run()
+            }
           >
             <AlignRightIcon />
           </ToolbarButton>
         </div>
-        {editor ? (
+        {toolbarEditor ? (
           <BubbleMenu
-            editor={editor}
+            editor={toolbarEditor}
             shouldShow={({ editor: currentEditor, from, to }) =>
               currentEditor.isEditable &&
               from !== to &&
@@ -977,28 +1186,30 @@ export function PostEditor({
             <ToolbarButton
               label="굵게"
               active={editorState?.bold}
-              onClick={() => editor.chain().focus().toggleBold().run()}
+              onClick={() => toolbarEditor.chain().focus().toggleBold().run()}
             >
               <BoldIcon />
             </ToolbarButton>
             <ToolbarButton
               label="기울임"
               active={editorState?.italic}
-              onClick={() => editor.chain().focus().toggleItalic().run()}
+              onClick={() => toolbarEditor.chain().focus().toggleItalic().run()}
             >
               <ItalicIcon />
             </ToolbarButton>
             <ToolbarButton
               label="밑줄"
               active={editorState?.underline}
-              onClick={() => editor.chain().focus().toggleUnderline().run()}
+              onClick={() =>
+                toolbarEditor.chain().focus().toggleUnderline().run()
+              }
             >
               <UnderlineIcon />
             </ToolbarButton>
             <ToolbarButton
               label="취소선"
               active={editorState?.strike}
-              onClick={() => editor.chain().focus().toggleStrike().run()}
+              onClick={() => toolbarEditor.chain().focus().toggleStrike().run()}
             >
               <StrikethroughIcon />
             </ToolbarButton>
@@ -1013,34 +1224,54 @@ export function PostEditor({
         ) : null}
         <EditorContent
           editor={editor}
-          className="min-h-[min(20rem,33.333dvh)] sm:min-h-[min(24rem,33.333dvh)] [&_.tiptap_p.is-editor-empty:first-child::before]:pointer-events-none [&_.tiptap_p.is-editor-empty:first-child::before]:float-left [&_.tiptap_p.is-editor-empty:first-child::before]:h-0 [&_.tiptap_p.is-editor-empty:first-child::before]:text-muted-foreground/60 [&_.tiptap_p.is-editor-empty:first-child::before]:content-[attr(data-placeholder)]"
+          className={cn(
+            "min-h-[min(20rem,33.333dvh)] sm:min-h-[min(24rem,33.333dvh)]",
+            editorContentWrapperClassName
+          )}
         />
-        <div className="flex flex-wrap items-end justify-between gap-3 px-5 pt-5 pb-7 sm:px-8 sm:pt-8 sm:pb-7">
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
-            {selectedDestinations.length === 0 ? (
-              <span>플랫폼을 선택해 주세요.</span>
-            ) : mostConstrainedCharacterLimit ? (
-              <span
-                className={cn(
-                  "flex items-center gap-1.5",
-                  mostConstrainedCharacterLimit.characterCount >
-                    mostConstrainedCharacterLimit.maxCharacters
-                    ? "text-destructive"
-                    : undefined
+        {mode === "dashboard" ? (
+          <>
+            <div className="px-7 pt-2 pb-5 text-xs text-muted-foreground sm:px-10">
+              <CharacterLimitStatus
+                destinations={selectedDestinations}
+                limit={mostConstrainedCharacterLimit}
+              />
+            </div>
+            {threadReplyFields.map((replyField, index) => (
+              <Controller
+                key={replyField.id}
+                control={control}
+                name={`threadReplies.${index}.contentHtml`}
+                render={({ field }) => (
+                  <ThreadReplyEditor
+                    editorId={replyField.id}
+                    index={index}
+                    contentHtml={field.value}
+                    errorMessage={
+                      errors.threadReplies?.[index]?.contentHtml?.message
+                    }
+                    limit={threadReplyCharacterLimits[index] ?? null}
+                    destinations={threadDestinations}
+                    onChange={field.onChange}
+                    onFocus={setActiveEditor}
+                    onReady={registerReplyEditor}
+                    onDestroy={unregisterReplyEditor}
+                    onRemove={() => deleteThreadReply(index, replyField.id)}
+                  />
                 )}
-              >
-                <CharacterUsageRing
-                  characterCount={mostConstrainedCharacterLimit.characterCount}
-                  maxCharacters={mostConstrainedCharacterLimit.maxCharacters}
-                />
-                {platformLimits[mostConstrainedCharacterLimit.platform].label}{" "}
-                기준 {mostConstrainedCharacterLimit.characterCount}/
-                {mostConstrainedCharacterLimit.maxCharacters}자
-              </span>
-            ) : (
-              <span>글자 수 제한 없음</span>
-            )}
-          </div>
+              />
+            ))}
+          </>
+        ) : null}
+        <div className="flex flex-wrap items-end justify-between gap-3 px-5 pt-5 pb-7 sm:px-8 sm:pt-8 sm:pb-7">
+          {mode === "landing" ? (
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+              <CharacterLimitStatus
+                destinations={selectedDestinations}
+                limit={mostConstrainedCharacterLimit}
+              />
+            </div>
+          ) : null}
           {mode === "landing" ? (
             <Popover defaultOpen={Boolean(effectiveLoginError)}>
               <PopoverTrigger render={<Button className="h-10 shadow-sm" />}>
@@ -1084,18 +1315,37 @@ export function PostEditor({
               </PopoverContent>
             </Popover>
           ) : (
-            <Button
-              className="h-10 shadow-sm"
-              onClick={publish}
-              disabled={isPublishing}
-            >
-              <span>
-                {isPublishing ? "1분 이내로 완료돼요" : "공지 작성하기"}
-              </span>
-              {isPublishing ? (
-                <LoaderCircleIcon className="animate-spin" />
+            <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
+              {threadDestinations.length > 0 ? (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  className="h-10 shadow-sm"
+                  disabled={isPublishing || threadReplyFields.length >= 25}
+                  onClick={() =>
+                    appendThreadReply(
+                      { contentHtml: "<p></p>" },
+                      { shouldFocus: false }
+                    )
+                  }
+                >
+                  <PlusIcon />
+                  스레드 추가
+                </Button>
               ) : null}
-            </Button>
+              <Button
+                className="h-10 shadow-sm"
+                onClick={publish}
+                disabled={isPublishing}
+              >
+                <span>
+                  {isPublishing ? "1분 이내로 완료돼요" : "공지 작성하기"}
+                </span>
+                {isPublishing ? (
+                  <LoaderCircleIcon className="animate-spin" />
+                ) : null}
+              </Button>
+            </div>
           )}
         </div>
       </Card>

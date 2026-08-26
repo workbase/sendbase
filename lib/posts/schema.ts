@@ -17,6 +17,13 @@ export const postFormSchema = z
     destinations: z
       .array(z.enum(publishPlatforms))
       .min(1, "게시할 플랫폼을 선택해 주세요."),
+    threadReplies: z
+      .array(
+        z.object({
+          contentHtml: z.string().max(1_000_000, "답글이 너무 깁니다."),
+        })
+      )
+      .max(25, "답글은 최대 25개까지 추가할 수 있습니다."),
   })
   .superRefine((value, context) => {
     if (requiresPostTitle(value.destinations) && !value.title) {
