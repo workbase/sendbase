@@ -45,6 +45,15 @@ function editorHtmlToCounterText(html: string) {
     .trim()
 }
 
+function hasEditorContent(html: string) {
+  return editorHtmlToCounterText(html).length > 0 || /<img\b/i.test(html)
+}
+
+export function mergeEditorHtml(parts: readonly string[]) {
+  const content = parts.filter(hasEditorContent).join("")
+  return content || "<p></p>"
+}
+
 export function replaceEditorLinksWithUrls(html: string) {
   return html.replace(editorLinkPattern, (_match, href: string) => href)
 }

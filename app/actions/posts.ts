@@ -19,6 +19,7 @@ import {
   imageUrlsFromHtml,
   sanitizeEditorHtml,
 } from "@/lib/posts/content"
+import { mergeEditorHtml } from "@/lib/posts/editor-output"
 import { optimizePostImage, preparePostHtmlForSoop } from "@/lib/posts/images"
 import {
   isPostImageMimeType,
@@ -43,7 +44,6 @@ type PersistPostResult =
   | {
       ok: true
       postId: string
-      html: string
       imageUrls: string[]
       threadReplies: PreparedThreadReply[]
     }
@@ -136,7 +136,7 @@ async function persistPost(
   }
 
   const postId = data as string
-  return { ok: true, postId, html, imageUrls, threadReplies }
+  return { ok: true, postId, imageUrls, threadReplies }
 }
 
 export async function publishPostAction(
@@ -157,34 +157,49 @@ export async function publishPostAction(
   const images = imageUrlsFromHtml(sanitized)
   if (!socialText && images.length === 0)
     throw new Error("본문 또는 이미지를 추가해 주세요.")
-  validateLimits(parsed.data.destinations, socialText, discordContent, images)
   const threadPlatforms = parsed.data.destinations.filter(
     (platform): platform is "threads" | "x" =>
       platform === "threads" || platform === "x"
   )
-  const threadReplies =
-    threadPlatforms.length === 0
-      ? []
-      : parsed.data.threadReplies.map((reply, index) => {
-          const html = sanitizeEditorHtml(reply.contentHtml)
-          const text = htmlToPlainTextWithUrls(html)
-          const replyImages = imageUrlsFromHtml(html)
-          if (!text && replyImages.length === 0) {
-            throw new Error(
-              `답글 ${index + 1}에 내용 또는 이미지를 추가해 주세요.`
-            )
-          }
-          validateLimits(
-            threadPlatforms,
-            text,
-            text,
-            replyImages,
-            `답글 ${index + 1}`
-          )
-          return { html, text, imageUrls: replyImages }
-        })
+  const nonThreadPlatforms = parsed.data.destinations.filter(
+    (platform) => platform !== "threads" && platform !== "x"
+  )
+  validateLimits(threadPlatforms, socialText, discordContent, images)
+  const threadReplies = parsed.data.threadReplies.map((reply, index) => {
+    const html = sanitizeEditorHtml(reply.contentHtml)
+    const text = htmlToPlainTextWithUrls(html)
+    const replyImages = imageUrlsFromHtml(html)
+    if (!text && replyImages.length === 0) {
+      throw new Error(`답글 ${index + 1}에 내용 또는 이미지를 추가해 주세요.`)
+    }
+    if (threadPlatforms.length > 0) {
+      validateLimits(
+        threadPlatforms,
+        text,
+        text,
+        replyImages,
+        `답글 ${index + 1}`
+      )
+    }
+    return { html, text, imageUrls: replyImages }
+  })
+  const mergedHtml = sanitizeEditorHtml(
+    mergeEditorHtml([sanitized, ...threadReplies.map((reply) => reply.html)])
+  )
+  const mergedSocialText = htmlToPlainTextWithUrls(mergedHtml)
+  const mergedDiscordText = htmlToDiscordMarkdown(mergedHtml)
+  const mergedDiscordContent = parsed.data.title
+    ? `**${parsed.data.title}**\n\n${mergedDiscordText}`
+    : mergedDiscordText
+  const mergedImageUrls = imageUrlsFromHtml(mergedHtml)
+  validateLimits(
+    nonThreadPlatforms,
+    mergedSocialText,
+    mergedDiscordContent,
+    mergedImageUrls
+  )
   const soopHtml = parsed.data.destinations.includes("soop")
-    ? await preparePostHtmlForSoop(user.id, sanitized)
+    ? await preparePostHtmlForSoop(user.id, mergedHtml)
     : null
 
   const persistedPost = await persistPost(user.id, parsed.data, threadReplies)
@@ -192,7 +207,7 @@ export async function publishPostAction(
     return { ok: false, error: persistedPost.error }
   }
 
-  const { postId, html, imageUrls } = persistedPost
+  const { postId, imageUrls } = persistedPost
   const supabase = createAdminClient()
   const extensionJobs: ExtensionPublishJob[] = []
   const results: PublishResult["results"] = []
@@ -212,7 +227,7 @@ export async function publishPostAction(
               clubId: settings.clubId ?? "",
               menuname: settings.menuname ?? "",
               subject: parsed.data.title,
-              contentHtml: html,
+              contentHtml: mergedHtml,
               submit: true,
               autoClose: true,
             }
@@ -221,7 +236,7 @@ export async function publishPostAction(
               userid: settings.userid ?? "",
               boardId: settings.boardId ?? "",
               subject: parsed.data.title,
-              contentHtml: soopHtml ?? html,
+              contentHtml: soopHtml ?? mergedHtml,
               submit: true,
               autoClose: true,
             }
@@ -271,9 +286,18 @@ export async function publishPostAction(
       )
       const published = await publishToPlatform({
         title: parsed.data.title,
-        text: socialText,
-        discordText: discordContent,
-        imageUrls,
+        text:
+          platform === "threads" || platform === "x"
+            ? socialText
+            : mergedSocialText,
+        discordText:
+          platform === "threads" || platform === "x"
+            ? discordContent
+            : mergedDiscordContent,
+        imageUrls:
+          platform === "threads" || platform === "x"
+            ? imageUrls
+            : mergedImageUrls,
       })
       if (platform === "threads" || platform === "x") {
         await supabase

@@ -77,6 +77,7 @@ import {
 import {
   editorHtmlToDiscordCounterText,
   editorHtmlToSocialCounterText,
+  mergeEditorHtml,
 } from "@/lib/posts/editor-output"
 import {
   isPostImageMimeType,
@@ -447,6 +448,23 @@ function getMostConstrainedCharacterLimit(
   return mostConstrained
 }
 
+function selectMostConstrainedCharacterLimit(
+  ...limits: Array<CharacterLimitInfo | null>
+) {
+  let mostConstrained: CharacterLimitInfo | null = null
+  for (const limit of limits) {
+    if (
+      limit &&
+      (mostConstrained === null ||
+        limit.characterCount / limit.maxCharacters >
+          mostConstrained.characterCount / mostConstrained.maxCharacters)
+    ) {
+      mostConstrained = limit
+    }
+  }
+  return mostConstrained
+}
+
 function CharacterLimitStatus({
   destinations,
   limit,
@@ -643,6 +661,7 @@ export function PostEditor({
     fields: threadReplyFields,
     append: appendThreadReply,
     remove: removeThreadReply,
+    replace: replaceThreadReplies,
   } = useFieldArray({ control, name: "threadReplies" })
   const title = useWatch({ control, name: "title" })
   const contentHtml = useWatch({ control, name: "contentHtml" })
@@ -657,14 +676,38 @@ export function PostEditor({
       ),
     [selectedDestinations]
   )
+  const nonThreadDestinations = useMemo(
+    () =>
+      selectedDestinations.filter(
+        (platform) => platform !== "threads" && platform !== "x"
+      ),
+    [selectedDestinations]
+  )
+  const mergedContentHtml = useMemo(
+    () =>
+      mergeEditorHtml([
+        contentHtml,
+        ...threadReplies.map((reply) => reply.contentHtml),
+      ]),
+    [contentHtml, threadReplies]
+  )
   const mostConstrainedCharacterLimit = useMemo(
     () =>
-      getMostConstrainedCharacterLimit(
-        contentHtml,
-        selectedDestinations,
-        title
+      selectMostConstrainedCharacterLimit(
+        getMostConstrainedCharacterLimit(contentHtml, threadDestinations),
+        getMostConstrainedCharacterLimit(
+          mergedContentHtml,
+          nonThreadDestinations,
+          title
+        )
       ),
-    [contentHtml, selectedDestinations, title]
+    [
+      contentHtml,
+      mergedContentHtml,
+      nonThreadDestinations,
+      threadDestinations,
+      title,
+    ]
   )
   const threadReplyCharacterLimits = useMemo(
     () =>
@@ -738,13 +781,22 @@ export function PostEditor({
           toast.error("게시물을 찾을 수 없습니다.")
           return
         }
+        const hasThreadDestination = detail.destinations.some(
+          (platform) => platform === "threads" || platform === "x"
+        )
+        const contentHtml = hasThreadDestination
+          ? detail.contentHtml
+          : mergeEditorHtml([
+              detail.contentHtml,
+              ...detail.threadReplies.map((reply) => reply.contentHtml),
+            ])
         reset({
           title: detail.editorTitle,
-          contentHtml: detail.contentHtml,
+          contentHtml,
           destinations: detail.destinations,
-          threadReplies: detail.threadReplies,
+          threadReplies: hasThreadDestination ? detail.threadReplies : [],
         })
-        editor?.commands.setContent(detail.contentHtml, { emitUpdate: false })
+        editor?.commands.setContent(contentHtml, { emitUpdate: false })
         requestAnimationFrame(() => {
           editor?.commands.focus("end")
           editorContainerRef.current?.scrollIntoView({
@@ -792,6 +844,22 @@ export function PostEditor({
     const replyEditor = replyEditorsRef.current.get(editorId)
     if (replyEditor && activeEditor === replyEditor) setActiveEditor(editor)
     removeThreadReply(index)
+  }
+
+  function mergeThreadRepliesIntoMainEditor() {
+    if (threadReplies.length === 0) return
+
+    const mergedHtml = mergeEditorHtml([
+      editor?.getHTML() ?? contentHtml,
+      ...threadReplies.map((reply) => reply.contentHtml),
+    ])
+    setActiveEditor(editor)
+    editor?.commands.setContent(mergedHtml, { emitUpdate: false })
+    setValue("contentHtml", mergedHtml, {
+      shouldDirty: true,
+      shouldValidate: false,
+    })
+    replaceThreadReplies([])
   }
 
   function openLinkDialog() {
@@ -1019,6 +1087,13 @@ export function PostEditor({
                           ? field.value.filter((item) => item !== platform)
                           : [...field.value, platform]
                         field.onChange(destinations)
+                        const hasThreadDestination = destinations.some(
+                          (destination) =>
+                            destination === "threads" || destination === "x"
+                        )
+                        if (!hasThreadDestination) {
+                          mergeThreadRepliesIntoMainEditor()
+                        }
                         if (mode === "dashboard") {
                           saveDestinations(destinations)
                         }
