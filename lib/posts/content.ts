@@ -104,8 +104,23 @@ export function htmlToPlainText(html: string) {
     textFilter: (text) => text,
   })
     .replace(/&nbsp;/g, " ")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&amp;/g, "&")
     .replace(/\n{3,}/g, "\n\n")
     .trim()
+}
+
+/**
+ * Replaces custom anchors with their URLs for plain-text APIs.
+ */
+export function htmlToPlainTextWithUrls(html: string) {
+  const withVisibleUrls = html.replace(
+    /<a\s+[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/gi,
+    (_match, href: string) => htmlToPlainText(href)
+  )
+
+  return htmlToPlainText(withVisibleUrls)
 }
 
 function escapeDiscordLinkLabel(value: string) {

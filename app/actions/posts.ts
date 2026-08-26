@@ -12,8 +12,9 @@ import {
 } from "@/lib/platforms/limits"
 import { publishToApiPlatform } from "@/lib/platforms/publish"
 import {
-  htmlToPlainText,
   htmlToDiscordMarkdown,
+  htmlToPlainText,
+  htmlToPlainTextWithUrls,
   imageMetadataFromHtml,
   imageUrlsFromHtml,
   sanitizeEditorHtml,
@@ -43,7 +44,6 @@ type PersistPostResult =
       ok: true
       postId: string
       html: string
-      text: string
       imageUrls: string[]
     }
 
@@ -114,7 +114,7 @@ async function persistPost(
   }
 
   const postId = data as string
-  return { ok: true, postId, html, text, imageUrls }
+  return { ok: true, postId, html, imageUrls }
 }
 
 export async function publishPostAction(
@@ -127,15 +127,15 @@ export async function publishPostAction(
       parsed.error.issues[0]?.message ?? "입력값을 확인해 주세요."
     )
   const sanitized = sanitizeEditorHtml(parsed.data.contentHtml)
-  const plainText = htmlToPlainText(sanitized)
+  const socialText = htmlToPlainTextWithUrls(sanitized)
   const discordText = htmlToDiscordMarkdown(sanitized)
   const discordContent = parsed.data.title
     ? `**${parsed.data.title}**\n\n${discordText}`
     : discordText
   const images = imageUrlsFromHtml(sanitized)
-  if (!plainText && images.length === 0)
+  if (!socialText && images.length === 0)
     throw new Error("본문 또는 이미지를 추가해 주세요.")
-  validateLimits(parsed.data.destinations, plainText, discordContent, images)
+  validateLimits(parsed.data.destinations, socialText, discordContent, images)
   const soopHtml = parsed.data.destinations.includes("soop")
     ? await preparePostHtmlForSoop(user.id, sanitized)
     : null
@@ -145,7 +145,7 @@ export async function publishPostAction(
     return { ok: false, error: persistedPost.error }
   }
 
-  const { postId, html, text, imageUrls } = persistedPost
+  const { postId, html, imageUrls } = persistedPost
   const supabase = createAdminClient()
   const extensionJobs: ExtensionPublishJob[] = []
   const results: PublishResult["results"] = []
@@ -216,7 +216,7 @@ export async function publishPostAction(
       const published = await publishToApiPlatform(platform, {
         userId: user.id,
         title: parsed.data.title,
-        text,
+        text: socialText,
         discordText: discordContent,
         imageUrls,
       })
