@@ -38,8 +38,8 @@ import {
   LoaderCircleIcon,
   PlusIcon,
   StrikethroughIcon,
-  Trash2Icon,
   UnderlineIcon,
+  XIcon,
 } from "lucide-react"
 import { Controller, useFieldArray, useForm, useWatch } from "react-hook-form"
 
@@ -506,6 +506,7 @@ function ThreadReplyEditor({
   onReady,
   onDestroy,
   onRemove,
+  footerActions,
 }: {
   editorId: string
   index: number
@@ -518,6 +519,7 @@ function ThreadReplyEditor({
   onReady: (editorId: string, editor: TiptapEditor) => void
   onDestroy: (editorId: string, editor: TiptapEditor) => void
   onRemove: () => void
+  footerActions?: React.ReactNode
 }) {
   const onChangeRef = useRef(onChange)
   const onFocusRef = useRef(onFocus)
@@ -555,27 +557,33 @@ function ThreadReplyEditor({
 
   return (
     <section className="border-t" aria-label={`답글 ${index + 1}`}>
-      <div className="flex items-center justify-between px-7 pt-5 sm:px-10">
-        <span className="text-sm font-medium">답글 {index + 1}</span>
+      <div className="flex items-center justify-between px-7 pt-10 sm:px-10">
+        <span className="text-sm font-medium text-muted-foreground">
+          답글 {index + 1}
+        </span>
         <Button
           type="button"
           variant="ghost"
           size="icon-sm"
+          className="text-muted-foreground"
           aria-label={`답글 ${index + 1} 삭제`}
           onClick={onRemove}
         >
-          <Trash2Icon />
+          <XIcon />
         </Button>
       </div>
       <EditorContent
         editor={editor}
         className={cn("min-h-40", editorContentWrapperClassName)}
       />
-      <div className="px-7 pt-2 pb-5 text-xs text-muted-foreground sm:px-10">
-        <CharacterLimitStatus destinations={destinations} limit={limit} />
-        {errorMessage ? (
-          <p className="mt-2 text-destructive">{errorMessage}</p>
-        ) : null}
+      <div className="flex flex-wrap items-end justify-between gap-3 px-7 pt-2 pb-10 sm:px-10">
+        <div className="text-xs text-muted-foreground">
+          <CharacterLimitStatus destinations={destinations} limit={limit} />
+          {errorMessage ? (
+            <p className="mt-2 text-destructive">{errorMessage}</p>
+          ) : null}
+        </div>
+        {footerActions}
       </div>
     </section>
   )
@@ -1056,6 +1064,36 @@ export function PostEditor({
   })
 
   const toolbarEditor = activeEditor ?? editor
+  const dashboardActions =
+    mode === "dashboard" ? (
+      <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
+        {threadDestinations.length > 0 ? (
+          <Button
+            type="button"
+            variant="secondary"
+            className="h-10 shadow-sm"
+            disabled={isPublishing || threadReplyFields.length >= 25}
+            onClick={() =>
+              appendThreadReply(
+                { contentHtml: "<p></p>" },
+                { shouldFocus: false }
+              )
+            }
+          >
+            <PlusIcon />
+            스레드 추가
+          </Button>
+        ) : null}
+        <Button
+          className="h-10 shadow-sm"
+          onClick={publish}
+          disabled={isPublishing}
+        >
+          <span>{isPublishing ? "1분 이내로 완료돼요" : "공지 작성하기"}</span>
+          {isPublishing ? <LoaderCircleIcon className="animate-spin" /> : null}
+        </Button>
+      </div>
+    ) : null
 
   return (
     <div ref={editorContainerRef} className="mx-auto w-full max-w-3xl">
@@ -1306,11 +1344,14 @@ export function PostEditor({
         />
         {mode === "dashboard" ? (
           <>
-            <div className="px-7 pt-2 pb-5 text-xs text-muted-foreground sm:px-10">
-              <CharacterLimitStatus
-                destinations={selectedDestinations}
-                limit={mostConstrainedCharacterLimit}
-              />
+            <div className="flex flex-wrap items-end justify-between gap-3 px-7 pt-2 pb-10 sm:px-10">
+              <div className="text-xs text-muted-foreground">
+                <CharacterLimitStatus
+                  destinations={selectedDestinations}
+                  limit={mostConstrainedCharacterLimit}
+                />
+              </div>
+              {threadReplyFields.length === 0 ? dashboardActions : null}
             </div>
             {threadReplyFields.map((replyField, index) => (
               <Controller
@@ -1332,22 +1373,25 @@ export function PostEditor({
                     onReady={registerReplyEditor}
                     onDestroy={unregisterReplyEditor}
                     onRemove={() => deleteThreadReply(index, replyField.id)}
+                    footerActions={
+                      index === threadReplyFields.length - 1
+                        ? dashboardActions
+                        : undefined
+                    }
                   />
                 )}
               />
             ))}
           </>
         ) : null}
-        <div className="flex flex-wrap items-end justify-between gap-3 px-5 pt-5 pb-7 sm:px-8 sm:pt-8 sm:pb-7">
-          {mode === "landing" ? (
+        {mode === "landing" ? (
+          <div className="flex flex-wrap items-end justify-between gap-3 px-5 pt-5 pb-7 sm:px-8 sm:pt-8 sm:pb-7">
             <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
               <CharacterLimitStatus
                 destinations={selectedDestinations}
                 limit={mostConstrainedCharacterLimit}
               />
             </div>
-          ) : null}
-          {mode === "landing" ? (
             <Popover defaultOpen={Boolean(effectiveLoginError)}>
               <PopoverTrigger render={<Button className="h-10 shadow-sm" />}>
                 무료로 시작하기
@@ -1389,40 +1433,8 @@ export function PostEditor({
                 </div>
               </PopoverContent>
             </Popover>
-          ) : (
-            <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
-              {threadDestinations.length > 0 ? (
-                <Button
-                  type="button"
-                  variant="secondary"
-                  className="h-10 shadow-sm"
-                  disabled={isPublishing || threadReplyFields.length >= 25}
-                  onClick={() =>
-                    appendThreadReply(
-                      { contentHtml: "<p></p>" },
-                      { shouldFocus: false }
-                    )
-                  }
-                >
-                  <PlusIcon />
-                  스레드 추가
-                </Button>
-              ) : null}
-              <Button
-                className="h-10 shadow-sm"
-                onClick={publish}
-                disabled={isPublishing}
-              >
-                <span>
-                  {isPublishing ? "1분 이내로 완료돼요" : "공지 작성하기"}
-                </span>
-                {isPublishing ? (
-                  <LoaderCircleIcon className="animate-spin" />
-                ) : null}
-              </Button>
-            </div>
-          )}
-        </div>
+          </div>
+        ) : null}
       </Card>
       <EditorLinkDialog
         open={linkDialog.open}
