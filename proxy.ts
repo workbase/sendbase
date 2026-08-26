@@ -4,19 +4,15 @@ const SESSION_COOKIE = "sendbase_session"
 
 export function proxy(request: NextRequest) {
   if (
-    request.nextUrl.pathname === "/terms" &&
-    request.nextUrl.searchParams.get("tab") === "privacy"
+    request.nextUrl.pathname === "/" &&
+    request.cookies.has(SESSION_COOKIE)
   ) {
-    const privacyUrl = request.nextUrl.clone()
-    privacyUrl.pathname = "/privacy"
-    privacyUrl.search = ""
-    return NextResponse.redirect(privacyUrl, 308)
+    return NextResponse.redirect(new URL("/dashboard", request.url))
   }
 
-  if (!request.cookies.has(SESSION_COOKIE)) return NextResponse.next()
-  return NextResponse.redirect(new URL("/dashboard", request.url))
+  return NextResponse.next()
 }
 
 export const config = {
-  matcher: ["/", "/terms"],
+  matcher: ["/"],
 }
