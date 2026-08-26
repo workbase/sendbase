@@ -159,10 +159,10 @@ function OAuthScopeTable() {
         <TableRow>
           <TableCell>Threads</TableCell>
           <TableCell className="whitespace-normal">
-            threads_basic, threads_content_publish
+            threads_basic, threads_content_publish, threads_manage_replies
           </TableCell>
           <TableCell className="whitespace-normal">
-            계정 식별 정보 확인 및 콘텐츠 게시
+            계정 식별 정보 확인, 콘텐츠 게시 및 답글 작성
           </TableCell>
         </TableRow>
         <TableRow>

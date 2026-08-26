@@ -25,7 +25,10 @@ export async function GET(
   if (!user) return NextResponse.redirect(appOrigin())
   const { platform } = await context.params
   if (!isApiPlatform(platform)) {
-    return NextResponse.json({ message: "지원하지 않는 플랫폼입니다." }, { status: 404 })
+    return NextResponse.json(
+      { message: "지원하지 않는 플랫폼입니다." },
+      { status: 404 }
+    )
   }
 
   try {
@@ -37,11 +40,16 @@ export async function GET(
     if (platform === "threads") {
       authorizeUrl = new URL("https://threads.net/oauth/authorize")
       authorizeUrl.searchParams.set("client_id", required("THREADS_CLIENT_ID"))
-      authorizeUrl.searchParams.set("scope", "threads_basic,threads_content_publish")
+      authorizeUrl.searchParams.set(
+        "scope",
+        "threads_basic,threads_content_publish,threads_manage_replies"
+      )
     } else if (platform === "x") {
       authorizeUrl = new URL("https://x.com/i/oauth2/authorize")
       verifier = randomBytes(48).toString("base64url")
-      const challenge = createHash("sha256").update(verifier).digest("base64url")
+      const challenge = createHash("sha256")
+        .update(verifier)
+        .digest("base64url")
       authorizeUrl.searchParams.set("client_id", required("X_CLIENT_ID"))
       authorizeUrl.searchParams.set(
         "scope",
@@ -73,7 +81,10 @@ export async function GET(
     )
     return NextResponse.redirect(authorizeUrl)
   } catch (error) {
-    const message = error instanceof Error ? error.message : "플랫폼 연결 설정 오류입니다."
-    return NextResponse.redirect(`${appOrigin()}/settings?error=${encodeURIComponent(message)}`)
+    const message =
+      error instanceof Error ? error.message : "플랫폼 연결 설정 오류입니다."
+    return NextResponse.redirect(
+      `${appOrigin()}/settings?error=${encodeURIComponent(message)}`
+    )
   }
 }

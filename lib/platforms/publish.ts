@@ -231,7 +231,21 @@ async function createThreadsContainer(
       cache: "no-store",
     }
   )
-  const result = await responseJson(response, "threads", "create-container")
+  let result: Record<string, unknown>
+  try {
+    result = await responseJson(response, "threads", "create-container")
+  } catch (error) {
+    if (
+      params.reply_to_id &&
+      error instanceof PlatformApiError &&
+      error.apiCode === 1
+    ) {
+      throw new Error(
+        "Threads 답글 권한이 없습니다. 설정에서 Threads 연결을 해제한 뒤 다시 연결해 주세요."
+      )
+    }
+    throw error
+  }
   const id = stringValue(result, "id")
   if (!id) throw new Error("Threads 미디어 컨테이너 ID가 없습니다.")
   return id
@@ -399,18 +413,27 @@ async function publishThreads(
     ? { reply_to_id: input.replyToId }
     : {}
 
-  if (input.imageUrls.length === 0) {
+  if (input.imageUrls.length === 0 && !input.replyToId) {
     const id = await createThreadsContainer(externalAccountId, accessToken, {
       media_type: "TEXT",
       text: input.text,
       auto_publish_text: "true",
-      ...replyParams,
     })
     return threadsPublishOutput(id, accessToken)
   }
 
   let mediaContainerId: string
-  if (input.imageUrls.length === 1) {
+  if (input.imageUrls.length === 0) {
+    mediaContainerId = await createThreadsContainer(
+      externalAccountId,
+      accessToken,
+      {
+        media_type: "TEXT",
+        text: input.text,
+        ...replyParams,
+      }
+    )
+  } else if (input.imageUrls.length === 1) {
     mediaContainerId = await createThreadsContainer(
       externalAccountId,
       accessToken,
