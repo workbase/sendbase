@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest"
 
-import { countCharacters, countLinks, platformLimits } from "./limits"
+import {
+  countCharacters,
+  countLinks,
+  getPlatformCharacterLimit,
+  hasXPremiumSetting,
+  platformLimits,
+} from "./limits"
 
 describe("countCharacters", () => {
   describe("X", () => {
@@ -43,5 +49,18 @@ describe("Threads links", () => {
         "https://one.example https://two.example https://three.example"
       )
     ).toBe(3)
+  })
+})
+
+describe("X account limits", () => {
+  it("uses 25,000 characters for premium accounts", () => {
+    expect(getPlatformCharacterLimit("x", true)).toBe(25_000)
+    expect(getPlatformCharacterLimit("x", false)).toBe(280)
+  })
+
+  it("reads both persisted and JSON boolean premium values", () => {
+    expect(hasXPremiumSetting({ xPremium: "true" })).toBe(true)
+    expect(hasXPremiumSetting({ xPremium: true })).toBe(true)
+    expect(hasXPremiumSetting({ xPremium: "false" })).toBe(false)
   })
 })

@@ -66,7 +66,12 @@ import {
 } from "@/components/ui/popover"
 import { getStoredExtensionInstallation } from "@/lib/browser/extension-installation"
 import { cn } from "@/lib/utils"
-import { countCharacters, platformLimits } from "@/lib/platforms/limits"
+import {
+  countCharacters,
+  getPlatformCharacterLimit,
+  hasXPremiumSetting,
+  platformLimits,
+} from "@/lib/platforms/limits"
 import {
   platformStatusTone,
   platformToggleTone,
@@ -431,7 +436,8 @@ type CharacterLimitInfo = {
 function getMostConstrainedCharacterLimit(
   contentHtml: string,
   destinations: readonly PublishPlatform[],
-  title = ""
+  title = "",
+  xPremium = false
 ): CharacterLimitInfo | null {
   const socialText = editorHtmlToSocialCounterText(contentHtml)
   const discordText = editorHtmlToDiscordCounterText(contentHtml)
@@ -439,7 +445,7 @@ function getMostConstrainedCharacterLimit(
   let mostConstrained: CharacterLimitInfo | null = null
 
   for (const platform of destinations) {
-    const maxCharacters = platformLimits[platform].maxCharacters
+    const maxCharacters = getPlatformCharacterLimit(platform, xPremium)
     if (maxCharacters === null) continue
 
     const characterCount = countCharacters(
@@ -627,6 +633,13 @@ export function PostEditor({
 
     return Array.from(connected)
   }, [connected, mode])
+  const xPremium = useMemo(
+    () =>
+      hasXPremiumSetting(
+        connections.find((connection) => connection.platform === "x")?.settings
+      ),
+    [connections]
+  )
   const initialContentHtml =
     mode === "landing" ? landingEditorContentHtml : "<p></p>"
   const isDestinationsReady = useSyncExternalStore(
@@ -712,7 +725,12 @@ export function PostEditor({
   const mostConstrainedCharacterLimit = useMemo(
     () =>
       selectMostConstrainedCharacterLimit(
-        getMostConstrainedCharacterLimit(contentHtml, threadDestinations),
+        getMostConstrainedCharacterLimit(
+          contentHtml,
+          threadDestinations,
+          "",
+          xPremium
+        ),
         getMostConstrainedCharacterLimit(
           mergedContentHtml,
           nonThreadDestinations,
@@ -725,14 +743,20 @@ export function PostEditor({
       nonThreadDestinations,
       threadDestinations,
       title,
+      xPremium,
     ]
   )
   const threadReplyCharacterLimits = useMemo(
     () =>
       threadReplies.map((reply) =>
-        getMostConstrainedCharacterLimit(reply.contentHtml, threadDestinations)
+        getMostConstrainedCharacterLimit(
+          reply.contentHtml,
+          threadDestinations,
+          "",
+          xPremium
+        )
       ),
-    [threadDestinations, threadReplies]
+    [threadDestinations, threadReplies, xPremium]
   )
 
   useLayoutEffect(() => {

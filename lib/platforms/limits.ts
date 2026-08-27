@@ -10,6 +10,10 @@ export type PlatformLimit = {
   note: string
 }
 
+export const X_STANDARD_MAX_CHARACTERS = 280
+export const X_PREMIUM_MAX_CHARACTERS = 25_000
+export const X_PREMIUM_SETTING_KEY = "xPremium"
+
 export const platformLimits: Record<PublishPlatform, PlatformLimit> = {
   threads: {
     label: "Threads",
@@ -20,7 +24,7 @@ export const platformLimits: Record<PublishPlatform, PlatformLimit> = {
   },
   x: {
     label: "X",
-    maxCharacters: 280,
+    maxCharacters: X_STANDARD_MAX_CHARACTERS,
     maxImages: 4,
     maxLinks: null,
     note: "CJK·이모지는 2자 · 링크는 23자로 계산",
@@ -46,6 +50,21 @@ export const platformLimits: Record<PublishPlatform, PlatformLimit> = {
     maxLinks: null,
     note: "게시판별 정책 적용",
   },
+}
+
+export function hasXPremiumSetting(
+  settings: Record<string, unknown> | null | undefined
+) {
+  const value = settings?.[X_PREMIUM_SETTING_KEY]
+  return value === true || value === "true"
+}
+
+export function getPlatformCharacterLimit(
+  platform: PublishPlatform,
+  xPremium = false
+) {
+  if (platform === "x" && xPremium) return X_PREMIUM_MAX_CHARACTERS
+  return platformLimits[platform].maxCharacters
 }
 
 const urlPattern = /https?:\/\/[^\s]+/g

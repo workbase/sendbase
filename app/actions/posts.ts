@@ -8,6 +8,8 @@ import { requireUser } from "@/lib/auth/session"
 import {
   countCharacters,
   countLinks,
+  getPlatformCharacterLimit,
+  hasXPremiumSetting,
   platformLimits,
 } from "@/lib/platforms/limits"
 import { createApiPlatformPublisher } from "@/lib/platforms/publish"
@@ -92,18 +94,20 @@ function validateLimits(
   text: string,
   discordContent: string,
   images: string[],
-  contextLabel?: string
+  contextLabel?: string,
+  xPremium = false
 ) {
   const prefix = contextLabel ? `${contextLabel}: ` : ""
   for (const platform of platforms) {
     const limit = platformLimits[platform]
+    const maxCharacters = getPlatformCharacterLimit(platform, xPremium)
     const platformText = platform === "discord" ? discordContent : text
     if (
-      limit.maxCharacters &&
-      countCharacters(platform, platformText) > limit.maxCharacters
+      maxCharacters &&
+      countCharacters(platform, platformText) > maxCharacters
     ) {
       throw new Error(
-        `${prefix}${limit.label} 글자 수 제한(${limit.maxCharacters}자)을 초과했습니다.`
+        `${prefix}${limit.label} 글자 수 제한(${maxCharacters}자)을 초과했습니다.`
       )
     }
     if (limit.maxImages && images.length > limit.maxImages) {
@@ -186,7 +190,30 @@ export async function publishPostAction(
   const nonThreadPlatforms = parsed.data.destinations.filter(
     (platform) => platform !== "threads" && platform !== "x"
   )
-  validateLimits(threadPlatforms, socialText, discordContent, images)
+  const supabase = createAdminClient()
+  const { data: xConnection, error: xConnectionError } =
+    threadPlatforms.includes("x")
+      ? await supabase
+          .from("platform_connections")
+          .select("settings")
+          .eq("user_id", user.id)
+          .eq("platform", "x")
+          .maybeSingle()
+      : { data: null, error: null }
+  if (xConnectionError) {
+    throw new Error(
+      `X 계정 설정을 확인하지 못했습니다: ${xConnectionError.message}`
+    )
+  }
+  const xPremium = hasXPremiumSetting(xConnection?.settings)
+  validateLimits(
+    threadPlatforms,
+    socialText,
+    discordContent,
+    images,
+    undefined,
+    xPremium
+  )
   const threadReplies = parsed.data.threadReplies.map((reply, index) => {
     const html = sanitizeEditorHtml(reply.contentHtml)
     const text = htmlToPlainTextWithUrls(html)
@@ -200,7 +227,8 @@ export async function publishPostAction(
         text,
         text,
         replyImages,
-        `답글 ${index + 1}`
+        `답글 ${index + 1}`,
+        xPremium
       )
     }
     return { html, text, imageUrls: replyImages }
@@ -224,7 +252,6 @@ export async function publishPostAction(
     (platform): platform is "naver_cafe" | "soop" =>
       platform === "naver_cafe" || platform === "soop"
   )
-  const supabase = createAdminClient()
   const [soopHtml, extensionConnections] = await Promise.all([
     parsed.data.destinations.includes("soop")
       ? preparePostHtmlForSoop(user.id, mergedHtml)

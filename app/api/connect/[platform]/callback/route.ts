@@ -25,7 +25,9 @@ function required(name: string) {
 }
 
 function record(value: unknown): Record<string, unknown> {
-  return typeof value === "object" && value !== null ? (value as Record<string, unknown>) : {}
+  return typeof value === "object" && value !== null
+    ? (value as Record<string, unknown>)
+    : {}
 }
 
 function value(recordValue: Record<string, unknown>, key: string) {
@@ -33,7 +35,11 @@ function value(recordValue: Record<string, unknown>, key: string) {
   return typeof candidate === "string" ? candidate : null
 }
 
-async function exchange(platform: ApiPlatform, code: string, verifier: string | null) {
+async function exchange(
+  platform: ApiPlatform,
+  code: string,
+  verifier: string | null
+) {
   const redirectUri = `${appOrigin()}/api/connect/${platform}/callback`
   let url: string
   let body: URLSearchParams
@@ -84,7 +90,12 @@ async function exchange(platform: ApiPlatform, code: string, verifier: string | 
   })
   const json: unknown = await response.json()
   const root = record(json)
-  if (!response.ok) throw new Error(value(root, "error_description") ?? value(root, "message") ?? "토큰 발급에 실패했습니다.")
+  if (!response.ok)
+    throw new Error(
+      value(root, "error_description") ??
+        value(root, "message") ??
+        "토큰 발급에 실패했습니다."
+    )
   const accessToken = value(root, "access_token")
   if (!accessToken) throw new Error("액세스 토큰이 없습니다.")
   const expires = root.expires_in
@@ -134,7 +145,10 @@ export async function GET(
   if (!user) return NextResponse.redirect(appOrigin())
   const { platform } = await context.params
   if (!isApiPlatform(platform)) {
-    return NextResponse.json({ message: "지원하지 않는 플랫폼입니다." }, { status: 404 })
+    return NextResponse.json(
+      { message: "지원하지 않는 플랫폼입니다." },
+      { status: 404 }
+    )
   }
   const url = new URL(request.url)
   const code = url.searchParams.get("code")
@@ -144,13 +158,19 @@ export async function GET(
   cookieStore.delete(`connect_state_${platform}`)
 
   try {
-    const saved = rawCookie ? (JSON.parse(rawCookie) as { state?: string; verifier?: string | null }) : {}
-    if (!code || !state || state !== saved.state) throw new Error("플랫폼 연결 요청이 만료되었습니다.")
+    const saved = rawCookie
+      ? (JSON.parse(rawCookie) as { state?: string; verifier?: string | null })
+      : {}
+    if (!code || !state || state !== saved.state)
+      throw new Error("플랫폼 연결 요청이 만료되었습니다.")
     const tokens = await exchange(platform, code, saved.verifier ?? null)
     if (platform === "threads") {
       const longLivedUrl = new URL("https://graph.threads.net/access_token")
       longLivedUrl.searchParams.set("grant_type", "th_exchange_token")
-      longLivedUrl.searchParams.set("client_secret", required("THREADS_CLIENT_SECRET"))
+      longLivedUrl.searchParams.set(
+        "client_secret",
+        required("THREADS_CLIENT_SECRET")
+      )
       longLivedUrl.searchParams.set("access_token", tokens.accessToken)
       const longLivedResponse = await fetch(longLivedUrl, { cache: "no-store" })
       const longLivedJson: unknown = await longLivedResponse.json()
@@ -170,6 +190,22 @@ export async function GET(
     const account = await profile(platform, tokens)
     if (!account.id) throw new Error("플랫폼 계정 ID가 없습니다.")
     const supabase = createAdminClient()
+    let connectionSettings = account.settings
+    if (platform === "x") {
+      const { data: existingConnection, error: existingConnectionError } =
+        await supabase
+          .from("platform_connections")
+          .select("settings")
+          .eq("user_id", user.id)
+          .eq("platform", "x")
+          .maybeSingle()
+      if (existingConnectionError)
+        throw new Error(existingConnectionError.message)
+      connectionSettings = {
+        ...record(existingConnection?.settings),
+        ...account.settings,
+      }
+    }
     const { error } = await supabase.from("platform_connections").upsert(
       {
         user_id: user.id,
@@ -177,19 +213,26 @@ export async function GET(
         external_account_id: account.id,
         display_name: account.name,
         access_token_encrypted: encryptToken(tokens.accessToken),
-        refresh_token_encrypted: tokens.refreshToken ? encryptToken(tokens.refreshToken) : null,
+        refresh_token_encrypted: tokens.refreshToken
+          ? encryptToken(tokens.refreshToken)
+          : null,
         expires_at: tokens.expiresIn
           ? new Date(Date.now() + tokens.expiresIn * 1000).toISOString()
           : null,
-        settings: account.settings,
+        settings: connectionSettings,
         updated_at: new Date().toISOString(),
       },
       { onConflict: "user_id,platform" }
     )
     if (error) throw new Error(error.message)
-    return NextResponse.redirect(`${appOrigin()}/settings?connected=${platform}`)
+    return NextResponse.redirect(
+      `${appOrigin()}/settings?connected=${platform}`
+    )
   } catch (error) {
-    const message = error instanceof Error ? error.message : "플랫폼 연결에 실패했습니다."
-    return NextResponse.redirect(`${appOrigin()}/settings?error=${encodeURIComponent(message)}`)
+    const message =
+      error instanceof Error ? error.message : "플랫폼 연결에 실패했습니다."
+    return NextResponse.redirect(
+      `${appOrigin()}/settings?error=${encodeURIComponent(message)}`
+    )
   }
 }

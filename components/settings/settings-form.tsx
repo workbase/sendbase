@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { useState, useTransition } from "react"
+import { Fragment, useState, useTransition } from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { ArrowLeftIcon, LinkIcon, LogOutIcon, UnlinkIcon } from "lucide-react"
 import { useForm } from "react-hook-form"
@@ -17,6 +17,7 @@ import { PlatformLogo } from "@/components/logos/platform-logo"
 import { DeleteAccountSection } from "@/components/settings/delete-account-section"
 import { ExtensionInstallationSection } from "@/components/settings/extension-installation-section"
 import { ThemeSelector } from "@/components/settings/theme-selector"
+import { XPremiumSetting } from "@/components/settings/x-premium-setting"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -36,6 +37,7 @@ import {
   soopSettingsInputSchema,
 } from "@/lib/platforms/board-links"
 import { platformToggleTone } from "@/lib/platforms/toggle-tone"
+import { hasXPremiumSetting } from "@/lib/platforms/limits"
 import type { AppUser, LoginProvider, PlatformConnection } from "@/lib/types"
 
 type NaverCafeSettingsFormValues = z.infer<typeof naverCafeSettingsInputSchema>
@@ -216,56 +218,63 @@ export function SettingsForm({
             {apiPlatforms.map((item) => {
               const connection = byPlatform.get(item.platform)
               return (
-                <div
-                  key={item.platform}
-                  className="flex flex-wrap items-center gap-4 p-6"
-                >
-                  <span
-                    className={`flex size-10 items-center justify-center rounded-xl ${
-                      connection?.connected
-                        ? platformToggleTone[item.platform]
-                        : "bg-muted"
-                    }`}
-                  >
-                    <PlatformLogo
-                      platform={item.platform}
-                      color={connection?.connected ? "currentColor" : undefined}
-                      className="size-6"
-                    />
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      <p className="font-medium">{item.name}</p>
-                      {connection?.connected ? <Badge>연결됨</Badge> : null}
-                    </div>
-                    <p className="mt-0.5 text-sm text-muted-foreground">
-                      {connection?.connected
-                        ? (connection.displayName ?? item.description)
-                        : "연결되지 않음"}
-                    </p>
-                  </div>
-                  {connection?.connected ? (
-                    <form action={disconnectPlatformAction}>
-                      <Button
-                        type="submit"
-                        name="platform"
-                        value={item.platform}
-                        variant="secondary"
-                      >
-                        <UnlinkIcon />
-                        연결 해제
-                      </Button>
-                    </form>
-                  ) : (
-                    <Button
-                      render={<a href={`/api/connect/${item.platform}`} />}
-                      nativeButton={false}
+                <Fragment key={item.platform}>
+                  <div className="flex flex-wrap items-center gap-4 p-6">
+                    <span
+                      className={`flex size-10 items-center justify-center rounded-xl ${
+                        connection?.connected
+                          ? platformToggleTone[item.platform]
+                          : "bg-muted"
+                      }`}
                     >
-                      <LinkIcon />
-                      연결하기
-                    </Button>
-                  )}
-                </div>
+                      <PlatformLogo
+                        platform={item.platform}
+                        color={
+                          connection?.connected ? "currentColor" : undefined
+                        }
+                        className="size-6"
+                      />
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <p className="font-medium">{item.name}</p>
+                        {connection?.connected ? <Badge>연결됨</Badge> : null}
+                      </div>
+                      <p className="mt-0.5 text-sm text-muted-foreground">
+                        {connection?.connected
+                          ? (connection.displayName ?? item.description)
+                          : "연결되지 않음"}
+                      </p>
+                    </div>
+                    {connection?.connected ? (
+                      <form action={disconnectPlatformAction}>
+                        <Button
+                          type="submit"
+                          name="platform"
+                          value={item.platform}
+                          variant="secondary"
+                        >
+                          <UnlinkIcon />
+                          연결 해제
+                        </Button>
+                      </form>
+                    ) : (
+                      <Button
+                        render={<a href={`/api/connect/${item.platform}`} />}
+                        nativeButton={false}
+                      >
+                        <LinkIcon />
+                        연결하기
+                      </Button>
+                    )}
+                  </div>
+                  {item.platform === "x" ? (
+                    <XPremiumSetting
+                      connected={connection?.connected ?? false}
+                      initialValue={hasXPremiumSetting(connection?.settings)}
+                    />
+                  ) : null}
+                </Fragment>
               )
             })}
             <aside aria-labelledby="api-channel-guide-heading">
