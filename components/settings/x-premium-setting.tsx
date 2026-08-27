@@ -56,9 +56,9 @@ export function XPremiumSetting({
 
   return (
     <>
-      <div className="flex items-center justify-between gap-4 p-6 pl-20">
+      <div className="flex items-center justify-between gap-4 pt-3 pr-6 pb-6 pl-20">
         <div>
-          <p className="font-medium">X 프리미엄 계정입니다</p>
+          <p className="font-medium">X 프리미엄 계정</p>
           {!connected ? (
             <p className="mt-0.5 text-sm text-muted-foreground">
               X 계정을 연결한 후 설정할 수 있습니다.
@@ -82,11 +82,11 @@ export function XPremiumSetting({
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
-              X 프리미엄 설정을 {enabling ? "켜시겠습니까?" : "끄시겠습니까?"}
+              X 프리미엄을 {enabling ? "사용하고 게신가요?" : "더 이상 사용하지 않으시나요?"}
             </AlertDialogTitle>
             <AlertDialogDescription>
               X 게시물의 글자 수 제한이 {enabling ? "25,000자" : "280자"}로
-              변경됩니다.
+              변경돼요. 만약 실제 프리미엄 구독 여부와 다르면 오류가 발생할 수 있으니, 실제 구독 여부에 맞게 유지해주세요.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

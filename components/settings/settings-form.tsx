@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { Fragment, useState, useTransition } from "react"
+import { useState, useTransition } from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { ArrowLeftIcon, LinkIcon, LogOutIcon, UnlinkIcon } from "lucide-react"
 import { useForm } from "react-hook-form"
@@ -218,8 +218,14 @@ export function SettingsForm({
             {apiPlatforms.map((item) => {
               const connection = byPlatform.get(item.platform)
               return (
-                <Fragment key={item.platform}>
-                  <div className="flex flex-wrap items-center gap-4 p-6">
+                <div key={item.platform}>
+                  <div
+                    className={
+                      item.platform === "x"
+                        ? "flex flex-wrap items-center gap-4 px-6 pt-6 pb-3"
+                        : "flex flex-wrap items-center gap-4 p-6"
+                    }
+                  >
                     <span
                       className={`flex size-10 items-center justify-center rounded-xl ${
                         connection?.connected
@@ -274,7 +280,7 @@ export function SettingsForm({
                       initialValue={hasXPremiumSetting(connection?.settings)}
                     />
                   ) : null}
-                </Fragment>
+                </div>
               )
             })}
             <aside aria-labelledby="api-channel-guide-heading">
