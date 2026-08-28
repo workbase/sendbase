@@ -736,7 +736,9 @@ export function PostEditor({
     [contentHtml]
   )
   const hasTikTokWithoutImage = isTikTokSelected && tiktokImageCount === 0
-  const shouldShowTitle = requiresPostTitle(selectedDestinations)
+  const shouldShowTitle =
+    mode === "dashboard" && requiresPostTitle(selectedDestinations)
+  const shouldShowTikTokOptions = mode === "dashboard" && isTikTokSelected
   const threadDestinations = useMemo(
     () =>
       selectedDestinations.filter(
@@ -1294,7 +1296,7 @@ export function PostEditor({
         )}
       />
 
-      {isTikTokSelected ? (
+      {shouldShowTikTokOptions ? (
         <Controller
           control={control}
           name="tiktokOptions"
