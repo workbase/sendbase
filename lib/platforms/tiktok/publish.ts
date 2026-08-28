@@ -51,7 +51,8 @@ export function mapTikTokPhotoPostRequest(
 export async function initializeTikTokPhotoPost(
   userId: string,
   options: TikTokPhotoPublishOptions,
-  photoImages: string[]
+  photoImages: string[],
+  destinationId?: string
 ) {
   for (let attempt = 0; attempt < 2; attempt += 1) {
     try {
@@ -65,7 +66,8 @@ export async function initializeTikTokPhotoPost(
             throw new Error("TikTok 게시 추적 ID를 받지 못했습니다.")
           }
           return { publishId }
-        }
+        },
+        { destinationId }
       )
     } catch (error) {
       const retryable =

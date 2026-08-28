@@ -8,6 +8,15 @@ import {
 } from "@/lib/platforms/tiktok/schema"
 
 const API_ORIGIN = "https://open.tiktokapis.com"
+const API_OPERATIONS: Record<string, string> = {
+  "/v2/post/publish/creator_info/query/": "query-creator-info",
+  "/v2/post/publish/content/init/": "initialize-photo-post",
+  "/v2/post/publish/status/fetch/": "fetch-publish-status",
+}
+
+type TikTokRequestContext = {
+  destinationId?: string
+}
 
 export class TikTokApiError extends Error {
   readonly code: string
@@ -51,10 +60,15 @@ function safeTikTokMessage(code: string) {
   return messages[code] ?? "TikTok 요청을 완료하지 못했습니다."
 }
 
+function operationForPath(path: string) {
+  return API_OPERATIONS[path] ?? path
+}
+
 async function requestWithToken(
   accessToken: string,
   path: string,
-  body: Record<string, unknown>
+  body: Record<string, unknown>,
+  context?: TikTokRequestContext
 ): Promise<Record<string, unknown>> {
   const response = await fetch(`${API_ORIGIN}${path}`, {
     method: "POST",
@@ -77,12 +91,23 @@ async function requestWithToken(
   const apiError = record(root.error)
   const code =
     typeof apiError.code === "string" ? apiError.code : "internal_error"
-  if (!response.ok || code !== "ok") {
+  const logId = typeof apiError.log_id === "string" ? apiError.log_id : null
+  const ok = response.ok && code === "ok"
+  console.info("[publish][api-response]", {
+    platform: "tiktok",
+    operation: operationForPath(path),
+    destinationId: context?.destinationId ?? null,
+    status: response.status,
+    statusText: response.statusText,
+    ok,
+    response: { code, logId },
+  })
+  if (!ok) {
     throw new TikTokApiError(
       code,
       safeTikTokMessage(code),
       response.status,
-      typeof apiError.log_id === "string" ? apiError.log_id : null
+      logId
     )
   }
   return { ...record(root.data), __rawResponse: rawResponse }
@@ -131,11 +156,13 @@ export function tikTokRequest<T>(
   userId: string,
   path: string,
   body: Record<string, unknown>,
-  map: (data: Record<string, unknown>) => T
+  map: (data: Record<string, unknown>) => T,
+  context?: TikTokRequestContext
 ) {
   return withTikTokAccessToken(
     userId,
-    async (accessToken) => map(await requestWithToken(accessToken, path, body)),
+    async (accessToken) =>
+      map(await requestWithToken(accessToken, path, body, context)),
     isTikTokInvalidToken
   )
 }

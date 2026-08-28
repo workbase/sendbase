@@ -63,13 +63,15 @@ function failReasonMessage(reason: string) {
 export async function fetchTikTokPublishStatus(
   userId: string,
   publishId: string,
-  attemptCount: number
+  attemptCount: number,
+  destinationId?: string
 ): Promise<TikTokStatusUpdate> {
   return tikTokRequest(
     userId,
     "/v2/post/publish/status/fetch/",
     { publish_id: publishId },
-    (data) => normalizeTikTokPublishStatus(data, publishId, attemptCount)
+    (data) => normalizeTikTokPublishStatus(data, publishId, attemptCount),
+    { destinationId }
   )
 }
 

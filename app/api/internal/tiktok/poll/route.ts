@@ -66,7 +66,8 @@ export async function POST(request: Request) {
       const update = await fetchTikTokPublishStatus(
         destination.posts.user_id,
         destination.external_publish_id,
-        nextAttempt
+        nextAttempt,
+        destination.id
       )
       await reconcileTikTokPublishStatus(update)
       if (update.providerStatus === "FAILED:auth_removed") {

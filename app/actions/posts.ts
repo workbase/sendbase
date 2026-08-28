@@ -481,7 +481,7 @@ export async function publishApiDestinationsAction(
     .eq("post_id", postId)
     .eq("status", "pending")
     .in("platform", apiPlatformSchema.options)
-    .select("platform, publish_options")
+    .select("id, platform, publish_options")
   if (claimError) throw new Error(claimError.message)
 
   const platforms = (claimedDestinations ?? []).flatMap((destination) => {
@@ -489,6 +489,7 @@ export async function publishApiDestinationsAction(
     return parsedPlatform.success
       ? [
           {
+            destinationId: destination.id,
             platform: parsedPlatform.data,
             publishOptions: destination.publish_options,
           },
@@ -516,6 +517,7 @@ export async function publishApiDestinationsAction(
   const results = await Promise.all(
     platforms.map(
       async ({
+        destinationId,
         platform,
         publishOptions,
       }): Promise<PublishDestinationResult> => {
@@ -534,7 +536,8 @@ export async function publishApiDestinationsAction(
             const initialized = await initializeTikTokPhotoPost(
               user.id,
               options,
-              photoImages
+              photoImages,
+              destinationId
             )
             tiktokPublishId = initialized.publishId
             const { error } = await supabase
