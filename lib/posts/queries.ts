@@ -16,6 +16,7 @@ import { POST_HISTORY_PAGE_SIZE } from "@/lib/posts/constants"
 const recentPostLinkOrder: PublishPlatform[] = [
   "x",
   "threads",
+  "tiktok",
   "naver_cafe",
   "soop",
 ]
@@ -26,6 +27,7 @@ const POST_PREVIEW_LENGTH = 320
 type DestinationRow = {
   platform: string
   external_url: string | null
+  status: string
 }
 
 type StoredThreadReply = {
@@ -73,6 +75,19 @@ function destinationPlatforms(
   })
 }
 
+function processingDestinationPlatforms(
+  destinations: DestinationRow[]
+): PublishPlatform[] {
+  return destinations.flatMap((destination) => {
+    const platform = destination.platform as PublishPlatform
+    return destination.status === "processing" &&
+      !destination.external_url &&
+      publishPlatformSet.has(platform)
+      ? [platform]
+      : []
+  })
+}
+
 function postImages(value: unknown): PostImage[] {
   if (!Array.isArray(value)) return []
 
@@ -113,6 +128,7 @@ export function mapPostHistoryRow(post: PostHistoryRow): PostHistoryItem {
     updatedAt: post.updated_at,
     links: publishedLinks(destinations),
     destinations: destinationPlatforms(destinations),
+    processingDestinations: processingDestinationPlatforms(destinations),
   }
 }
 
@@ -133,7 +149,7 @@ export const getPosts = cache(
     const { data, error } = await supabase
       .from("posts")
       .select(
-        "id, title, status, updated_at, post_destinations(platform, external_url)"
+        "id, title, status, updated_at, post_destinations(platform, external_url, status)"
       )
       .eq("user_id", userId)
       .neq("status", "draft")
@@ -160,7 +176,7 @@ export const getPostHistory = cache(
     let query = supabase
       .from("posts")
       .select(
-        "id, title, content_text, image_metadata, status, updated_at, post_destinations(platform, external_url)"
+        "id, title, content_text, image_metadata, status, updated_at, post_destinations(platform, external_url, status)"
       )
       .eq("user_id", userId)
       .neq("status", "draft")
@@ -192,7 +208,7 @@ export const getPostDetail = cache(
         .maybeSingle(),
       supabase
         .from("post_destinations")
-        .select("platform, external_url")
+        .select("platform, external_url, status")
         .eq("post_id", postId),
     ])
     if (postResult.error) throw new Error(postResult.error.message)
@@ -220,6 +236,9 @@ export const getPostDetail = cache(
         (destinationsResult.data ?? []) as DestinationRow[]
       ),
       destinations: destinationPlatforms(
+        (destinationsResult.data ?? []) as DestinationRow[]
+      ),
+      processingDestinations: processingDestinationPlatforms(
         (destinationsResult.data ?? []) as DestinationRow[]
       ),
     }

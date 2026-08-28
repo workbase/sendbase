@@ -7,10 +7,30 @@ export type Json =
   | Json[]
 
 export type Database = {
-  // Allows to automatically instantiate createClient with right options
-  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
-  __InternalSupabase: {
-    PostgrestVersion: "14.17"
+  graphql_public: {
+    Tables: {
+      [_ in never]: never
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      graphql: {
+        Args: {
+          extensions?: Json
+          operationName?: string
+          query?: string
+          variables?: Json
+        }
+        Returns: Json
+      }
+    }
+    Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
   }
   public: {
     Tables: {
@@ -189,8 +209,8 @@ export type Database = {
         Row: {
           created_at: string
           error_message: string | null
-          external_publish_id: string | null
           external_post_id: string | null
+          external_publish_id: string | null
           external_url: string | null
           id: string
           last_polled_at: string | null
@@ -208,8 +228,8 @@ export type Database = {
         Insert: {
           created_at?: string
           error_message?: string | null
-          external_publish_id?: string | null
           external_post_id?: string | null
+          external_publish_id?: string | null
           external_url?: string | null
           id?: string
           last_polled_at?: string | null
@@ -227,8 +247,8 @@ export type Database = {
         Update: {
           created_at?: string
           error_message?: string | null
-          external_publish_id?: string | null
           external_post_id?: string | null
+          external_publish_id?: string | null
           external_url?: string | null
           id?: string
           last_polled_at?: string | null
@@ -252,30 +272,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
-      }
-      tiktok_webhook_events: {
-        Row: {
-          created_at: string
-          event_key: string
-          event_name: string
-          id: string
-          publish_id: string
-        }
-        Insert: {
-          created_at?: string
-          event_key: string
-          event_name: string
-          id?: string
-          publish_id: string
-        }
-        Update: {
-          created_at?: string
-          event_key?: string
-          event_name?: string
-          id?: string
-          publish_id?: string
-        }
-        Relationships: []
       }
       posts: {
         Row: {
@@ -330,6 +326,30 @@ export type Database = {
           },
         ]
       }
+      tiktok_webhook_events: {
+        Row: {
+          created_at: string
+          event_key: string
+          event_name: string
+          id: string
+          publish_id: string
+        }
+        Insert: {
+          created_at?: string
+          event_key: string
+          event_name: string
+          id?: string
+          publish_id: string
+        }
+        Update: {
+          created_at?: string
+          event_key?: string
+          event_name?: string
+          id?: string
+          publish_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
@@ -350,10 +370,7 @@ export type Database = {
         }
         Returns: string
       }
-      finalize_post_status: {
-        Args: { p_post_id: string }
-        Returns: undefined
-      }
+      finalize_post_status: { Args: { p_post_id: string }; Returns: undefined }
       get_dashboard_initial_data: {
         Args: { p_limit?: number; p_now: string; p_token_hash: string }
         Returns: Json
@@ -361,13 +378,13 @@ export type Database = {
       reconcile_tiktok_publish_status: {
         Args: {
           p_destination_status: Database["public"]["Enums"]["destination_status"]
-          p_event_key: string | null
-          p_event_name: string | null
-          p_fail_reason: string | null
-          p_next_poll_at: string | null
+          p_event_key: string
+          p_event_name: string
+          p_fail_reason: string
+          p_next_poll_at: string
           p_provider_status: string
-          p_public_post_id: string | null
-          p_publicly_available: boolean | null
+          p_public_post_id: string
+          p_publicly_available: boolean
           p_publish_id: string
         }
         Returns: string
@@ -375,11 +392,20 @@ export type Database = {
     }
     Enums: {
       destination_status:
-        "pending" | "publishing" | "processing" | "published" | "failed"
+        | "pending"
+        | "publishing"
+        | "published"
+        | "failed"
+        | "processing"
       login_provider: "chzzk" | "soop" | "cime"
       post_status: "draft" | "publishing" | "published" | "partial" | "failed"
       publish_platform:
-        "threads" | "x" | "discord" | "tiktok" | "naver_cafe" | "soop"
+        | "threads"
+        | "x"
+        | "discord"
+        | "naver_cafe"
+        | "soop"
+        | "tiktok"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -395,12 +421,12 @@ export type Tables<
   DefaultSchemaTableNameOrOptions extends
     | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends (DefaultSchemaTableNameOrOptions extends {
+  TableName extends DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
         DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
-    : never) = never,
+    : never = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -422,12 +448,13 @@ export type Tables<
 
 export type TablesInsert<
   DefaultSchemaTableNameOrOptions extends
-    keyof DefaultSchema["Tables"] | { schema: keyof DatabaseWithoutInternals },
-  TableName extends (DefaultSchemaTableNameOrOptions extends {
+    | keyof DefaultSchema["Tables"]
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never) = never,
+    : never = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -446,12 +473,13 @@ export type TablesInsert<
 
 export type TablesUpdate<
   DefaultSchemaTableNameOrOptions extends
-    keyof DefaultSchema["Tables"] | { schema: keyof DatabaseWithoutInternals },
-  TableName extends (DefaultSchemaTableNameOrOptions extends {
+    | keyof DefaultSchema["Tables"]
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never) = never,
+    : never = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -470,12 +498,13 @@ export type TablesUpdate<
 
 export type Enums<
   DefaultSchemaEnumNameOrOptions extends
-    keyof DefaultSchema["Enums"] | { schema: keyof DatabaseWithoutInternals },
-  EnumName extends (DefaultSchemaEnumNameOrOptions extends {
+    | keyof DefaultSchema["Enums"]
+    | { schema: keyof DatabaseWithoutInternals },
+  EnumName extends DefaultSchemaEnumNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
-    : never) = never,
+    : never = never,
 > = DefaultSchemaEnumNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -488,11 +517,11 @@ export type CompositeTypes<
   PublicCompositeTypeNameOrOptions extends
     | keyof DefaultSchema["CompositeTypes"]
     | { schema: keyof DatabaseWithoutInternals },
-  CompositeTypeName extends (PublicCompositeTypeNameOrOptions extends {
+  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
-    : never) = never,
+    : never = never,
 > = PublicCompositeTypeNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -502,14 +531,17 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
+  graphql_public: {
+    Enums: {},
+  },
   public: {
     Enums: {
       destination_status: [
         "pending",
         "publishing",
-        "processing",
         "published",
         "failed",
+        "processing",
       ],
       login_provider: ["chzzk", "soop", "cime"],
       post_status: ["draft", "publishing", "published", "partial", "failed"],
@@ -517,10 +549,11 @@ export const Constants = {
         "threads",
         "x",
         "discord",
-        "tiktok",
         "naver_cafe",
         "soop",
+        "tiktok",
       ],
     },
   },
 } as const
+

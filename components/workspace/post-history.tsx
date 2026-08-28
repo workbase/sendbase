@@ -203,6 +203,30 @@ function PostMessage({
               </Tooltip>
             )
           })}
+          {post.processingDestinations.includes("tiktok") ? (
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <Button
+                    render={
+                      <a
+                        href="https://www.tiktok.com/"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      />
+                    }
+                    nativeButton={false}
+                    size="icon"
+                    className="rounded-full bg-muted hover:bg-muted"
+                    aria-label="TikTok에서 열기"
+                  >
+                    <PlatformLogo platform="tiktok" className="size-4" />
+                  </Button>
+                }
+              />
+              <TooltipContent>곧 게시물 링크로 교체돼요</TooltipContent>
+            </Tooltip>
+          ) : null}
           {post.destinations.includes("discord") ? (
             <Tooltip>
               <TooltipTrigger

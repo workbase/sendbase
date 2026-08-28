@@ -38,6 +38,7 @@ export type PostHistoryItem = PostSummary & {
   contentPreview: string
   images: PostImage[]
   destinations: PublishPlatform[]
+  processingDestinations: PublishPlatform[]
 }
 
 export type PublishedPostLink = {
