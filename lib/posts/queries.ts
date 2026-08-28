@@ -26,7 +26,10 @@ const POST_PREVIEW_LENGTH = 320
 
 type DestinationRow = {
   platform: string
+  external_post_id: string | null
+  external_publish_id: string | null
   external_url: string | null
+  publicly_available: boolean | null
   status: string
 }
 
@@ -51,12 +54,34 @@ export type ConnectionRow = {
   settings: Record<string, unknown> | null
 }
 
+function tikTokPostUrl(destination: DestinationRow) {
+  return destination.publicly_available === true &&
+    destination.external_post_id &&
+    /^\d+$/.test(destination.external_post_id)
+    ? `https://www.tiktok.com/player/v1/${destination.external_post_id}`
+    : null
+}
+
+function destinationUrl(destination: DestinationRow) {
+  if (
+    destination.platform === "tiktok" &&
+    destination.publicly_available === false
+  ) {
+    return null
+  }
+  return (
+    destination.external_url ??
+    (destination.platform === "tiktok" ? tikTokPostUrl(destination) : null)
+  )
+}
+
 function publishedLinks(destinations: DestinationRow[]): PublishedPostLink[] {
   return destinations
     .flatMap((destination) => {
       const platform = destination.platform as PublishPlatform
-      return destination.external_url && recentPostLinkPlatforms.has(platform)
-        ? [{ platform, url: destination.external_url }]
+      const url = destinationUrl(destination)
+      return url && recentPostLinkPlatforms.has(platform)
+        ? [{ platform, url }]
         : []
     })
     .sort(
@@ -80,8 +105,11 @@ function processingDestinationPlatforms(
 ): PublishPlatform[] {
   return destinations.flatMap((destination) => {
     const platform = destination.platform as PublishPlatform
-    return destination.status === "processing" &&
-      !destination.external_url &&
+    return platform === "tiktok" &&
+      destination.status !== "failed" &&
+      destination.publicly_available !== false &&
+      Boolean(destination.external_publish_id) &&
+      !destinationUrl(destination) &&
       publishPlatformSet.has(platform)
       ? [platform]
       : []
@@ -149,7 +177,7 @@ export const getPosts = cache(
     const { data, error } = await supabase
       .from("posts")
       .select(
-        "id, title, status, updated_at, post_destinations(platform, external_url, status)"
+        "id, title, status, updated_at, post_destinations(platform, external_post_id, external_publish_id, external_url, publicly_available, status)"
       )
       .eq("user_id", userId)
       .neq("status", "draft")
@@ -176,7 +204,7 @@ export const getPostHistory = cache(
     let query = supabase
       .from("posts")
       .select(
-        "id, title, content_text, image_metadata, status, updated_at, post_destinations(platform, external_url, status)"
+        "id, title, content_text, image_metadata, status, updated_at, post_destinations(platform, external_post_id, external_publish_id, external_url, publicly_available, status)"
       )
       .eq("user_id", userId)
       .neq("status", "draft")
@@ -208,7 +236,9 @@ export const getPostDetail = cache(
         .maybeSingle(),
       supabase
         .from("post_destinations")
-        .select("platform, external_url, status")
+        .select(
+          "platform, external_post_id, external_publish_id, external_url, publicly_available, status"
+        )
         .eq("post_id", postId),
     ])
     if (postResult.error) throw new Error(postResult.error.message)

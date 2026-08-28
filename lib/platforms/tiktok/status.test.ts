@@ -26,6 +26,20 @@ describe("TikTok status normalization", () => {
     )
     expect(update.destinationStatus).toBe("published")
     expect(update.publicPostId).toBe("9223372036854775000")
+    expect(update.nextPollAt).toBeNull()
+  })
+
+  it("continues polling a public post until TikTok exposes its post ID", () => {
+    const update = normalizeTikTokPublishStatus(
+      { status: "PUBLISH_COMPLETE", publicaly_available_post_id: [] },
+      "publish-id",
+      1,
+      true
+    )
+
+    expect(update.destinationStatus).toBe("published")
+    expect(update.publicPostId).toBeNull()
+    expect(update.nextPollAt).not.toBeNull()
   })
 
   it("retries transient provider failures before becoming terminal", () => {
@@ -66,6 +80,21 @@ describe("TikTok status normalization", () => {
     ).toMatchObject({
       destinationStatus: "failed",
       providerStatus: "post.publish.failed:auth_removed",
+    })
+  })
+
+  it("marks a completed webhook post as public when TikTok includes its post ID", () => {
+    expect(
+      webhookStatusUpdate({
+        event: "post.publish.complete",
+        publishId: "publish-id",
+        reason: null,
+        postId: "123",
+        eventKey: "event-key",
+      })
+    ).toMatchObject({
+      publicPostId: "123",
+      publiclyAvailable: true,
     })
   })
 })

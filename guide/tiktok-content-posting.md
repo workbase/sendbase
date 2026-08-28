@@ -281,7 +281,7 @@ supabase migration new add_tiktok_content_posting
 - `poll_attempt_count integer not null default 0`
 - `requires_manual_review boolean not null default false`
 
-TikTok `external_publish_id`에는 중복을 막는 partial unique index를 둔다. 공개 검수가 끝난 게시물 ID는 기존 `external_post_id`에, 공개 URL이 확정된 경우에만 `external_url`에 저장한다.
+TikTok `external_publish_id`에는 중복을 막는 partial unique index를 둔다. 공개 검수가 끝난 게시물 ID는 기존 `external_post_id`에 저장하고, 공개 상태가 확인되면 이미지와 영상을 모두 지원하는 `https://www.tiktok.com/player/v1/{post_id}`를 `external_url`에 저장한다.
 
 `publish_options`는 클라이언트 입력 원본이 아니라 서버 재검증을 통과한 값만 저장한다. access token, refresh token, Creator Info avatar URL 또는 민감한 API 원문 응답은 저장하지 않는다.
 
@@ -361,7 +361,7 @@ TikTok 초기화에는 공식 idempotency key가 없으므로, 네트워크 time
 15초 → 30초 → 60초 → 2분 → 5분 → 10분 반복
 ```
 
-- destination이 terminal 상태가 되면 즉시 polling 대상에서 제외한다.
+- destination이 terminal 상태가 되면 polling 대상에서 제외한다. 단, 공개 게시물의 `PUBLISH_COMPLETE`에 공개 post ID가 아직 없으면 공개 검수가 끝날 때까지 낮은 빈도의 polling을 유지한다.
 - access token당 상태 조회 한도 30회/분보다 충분히 낮게 중앙에서 제한한다.
 - 같은 TikTok 사용자에게 처리 중인 게시물이 여러 개면 총 요청 수를 합산한다.
 - `429`는 backoff 후 재시도한다.
@@ -377,7 +377,7 @@ Provider 상태는 다음처럼 정규화한다.
 | 입력 | Sendbase 처리 |
 |---|---|
 | `PROCESSING_DOWNLOAD` | `processing` 유지 |
-| `PUBLISH_COMPLETE` | `published` |
+| `PUBLISH_COMPLETE` | `published`; 공개 게시물인데 post ID가 없으면 polling 유지 |
 | `FAILED` | `failed`, `fail_reason` 저장 |
 | `post.publish.complete` | `published` |
 | `post.publish.failed` | `failed`, reason 저장 |

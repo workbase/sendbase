@@ -22,7 +22,10 @@ describe("mapPostHistoryRow", () => {
       createPostRow([
         {
           platform: "tiktok",
+          external_post_id: null,
+          external_publish_id: "publish-id",
           external_url: null,
+          publicly_available: null,
           status: "processing",
         },
       ])
@@ -37,7 +40,10 @@ describe("mapPostHistoryRow", () => {
       createPostRow([
         {
           platform: "tiktok",
+          external_post_id: "123",
+          external_publish_id: "publish-id",
           external_url: "https://www.tiktok.com/@sendbase/post/123",
+          publicly_available: true,
           status: "published",
         },
       ])
@@ -55,10 +61,76 @@ describe("mapPostHistoryRow", () => {
   it("does not mark a failed TikTok destination as processing", () => {
     const post = mapPostHistoryRow(
       createPostRow([
-        { platform: "tiktok", external_url: null, status: "failed" },
+        {
+          platform: "tiktok",
+          external_post_id: null,
+          external_publish_id: "publish-id",
+          external_url: null,
+          publicly_available: null,
+          status: "failed",
+        },
       ])
     )
 
     expect(post.processingDestinations).toEqual([])
+  })
+
+  it("keeps the temporary TikTok link after publishing completes without a public post ID", () => {
+    const post = mapPostHistoryRow(
+      createPostRow([
+        {
+          platform: "tiktok",
+          external_post_id: null,
+          external_publish_id: "publish-id",
+          external_url: null,
+          publicly_available: null,
+          status: "published",
+        },
+      ])
+    )
+
+    expect(post.processingDestinations).toEqual(["tiktok"])
+    expect(post.links).toEqual([])
+  })
+
+  it("builds a TikTok player link from a public post ID", () => {
+    const post = mapPostHistoryRow(
+      createPostRow([
+        {
+          platform: "tiktok",
+          external_post_id: "9223372036854775000",
+          external_publish_id: "publish-id",
+          external_url: null,
+          publicly_available: true,
+          status: "published",
+        },
+      ])
+    )
+
+    expect(post.processingDestinations).toEqual([])
+    expect(post.links).toEqual([
+      {
+        platform: "tiktok",
+        url: "https://www.tiktok.com/player/v1/9223372036854775000",
+      },
+    ])
+  })
+
+  it("does not expose a TikTok link after the post stops being public", () => {
+    const post = mapPostHistoryRow(
+      createPostRow([
+        {
+          platform: "tiktok",
+          external_post_id: "123",
+          external_publish_id: "publish-id",
+          external_url: "https://www.tiktok.com/player/v1/123",
+          publicly_available: false,
+          status: "published",
+        },
+      ])
+    )
+
+    expect(post.processingDestinations).toEqual([])
+    expect(post.links).toEqual([])
   })
 })

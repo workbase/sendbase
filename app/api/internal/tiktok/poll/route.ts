@@ -13,7 +13,17 @@ type DueDestination = {
   id: string
   external_publish_id: string
   poll_attempt_count: number
+  publish_options: unknown
   posts: { user_id: string } | null
+}
+
+function expectsPublicPost(value: unknown) {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    !Array.isArray(value) &&
+    (value as Record<string, unknown>).privacyLevel === "PUBLIC_TO_EVERYONE"
+  )
 }
 
 function authorized(request: Request) {
@@ -31,9 +41,11 @@ export async function POST(request: Request) {
   const now = new Date().toISOString()
   const { data, error } = await supabase
     .from("post_destinations")
-    .select("id, external_publish_id, poll_attempt_count, posts(user_id)")
+    .select(
+      "id, external_publish_id, poll_attempt_count, publish_options, posts(user_id)"
+    )
     .eq("platform", "tiktok")
-    .or("status.eq.processing,requires_manual_review.eq.true")
+    .not("next_poll_at", "is", null)
     .lte("next_poll_at", now)
     .order("next_poll_at", { ascending: true })
     .limit(25)
@@ -67,7 +79,8 @@ export async function POST(request: Request) {
         destination.posts.user_id,
         destination.external_publish_id,
         nextAttempt,
-        destination.id
+        destination.id,
+        expectsPublicPost(destination.publish_options)
       )
       await reconcileTikTokPublishStatus(update)
       if (update.providerStatus === "FAILED:auth_removed") {

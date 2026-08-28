@@ -64,13 +64,20 @@ export async function fetchTikTokPublishStatus(
   userId: string,
   publishId: string,
   attemptCount: number,
-  destinationId?: string
+  destinationId?: string,
+  expectsPublicPost = false
 ): Promise<TikTokStatusUpdate> {
   return tikTokRequest(
     userId,
     "/v2/post/publish/status/fetch/",
     { publish_id: publishId },
-    (data) => normalizeTikTokPublishStatus(data, publishId, attemptCount),
+    (data) =>
+      normalizeTikTokPublishStatus(
+        data,
+        publishId,
+        attemptCount,
+        expectsPublicPost
+      ),
     { destinationId }
   )
 }
@@ -78,7 +85,8 @@ export async function fetchTikTokPublishStatus(
 export function normalizeTikTokPublishStatus(
   data: Record<string, unknown>,
   publishId: string,
-  attemptCount: number
+  attemptCount: number,
+  expectsPublicPost = false
 ): TikTokStatusUpdate {
   const providerStatus = stringValue(data, "status")
   if (!providerStatus)
@@ -92,7 +100,10 @@ export function normalizeTikTokPublishStatus(
       failReason: null,
       publicPostId: resolvedPublicPostId,
       publiclyAvailable: resolvedPublicPostId ? true : null,
-      nextPollAt: null,
+      nextPollAt:
+        expectsPublicPost && !resolvedPublicPostId
+          ? nextPollAt(attemptCount)
+          : null,
     }
   }
   if (providerStatus === "FAILED") {
@@ -184,7 +195,7 @@ export function webhookStatusUpdate(input: {
         providerStatus: input.event,
         destinationStatus: "published",
         failReason: null,
-        publiclyAvailable: null,
+        publiclyAvailable: input.postId ? true : null,
       }
     case "post.publish.failed":
       return {
