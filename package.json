@@ -11,7 +11,7 @@
     "lint": "eslint",
     "format": "prettier --write \"**/*.{ts,tsx}\"",
     "typecheck": "tsc --noEmit",
-    "db:up": "supabase migration up --local",
+    "db:up": "supabase migration up --local && supabase gen types typescript --local > lib/database.types.ts",
     "db:reset": "supabase db reset --local"
   },
   "dependencies": {

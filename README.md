@@ -13,7 +13,7 @@ pnpm supabase start
 pnpm db:up
 ```
 
-로컬 데이터베이스를 마이그레이션 기준으로 다시 만들려면 `pnpm db:reset`을 사용합니다. 이 명령은 로컬 데이터만 삭제합니다. 원격 데이터베이스 마이그레이션은 `main` 브랜치에 추가된 마이그레이션을 GitHub Actions가 자동으로 적용합니다.
+`pnpm db:up`은 로컬 마이그레이션을 적용한 뒤 `lib/database.types.ts`도 다시 생성합니다. 로컬 데이터베이스를 마이그레이션 기준으로 다시 만들려면 `pnpm db:reset`을 사용합니다. 이 명령은 로컬 데이터만 삭제합니다. 원격 데이터베이스 마이그레이션은 `main` 브랜치에 추가된 마이그레이션을 GitHub Actions가 자동으로 적용합니다.
 
 4. OAuth 앱에 아래 콜백 URL을 등록합니다.
 
