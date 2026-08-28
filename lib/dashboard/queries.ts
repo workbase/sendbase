@@ -12,6 +12,7 @@ import type {
   PostHistoryItem,
   PublishPlatform,
 } from "@/lib/types"
+import { publishPlatforms } from "@/lib/types"
 
 const SESSION_COOKIE = "sendbase_session"
 const loginProviders = new Set<LoginProvider>(["chzzk", "soop", "cime"])
@@ -19,6 +20,7 @@ const loginProviders = new Set<LoginProvider>(["chzzk", "soop", "cime"])
 type DashboardInitialData = {
   user: AppUser
   connections: PlatformConnection[]
+  disabledPlatforms: PublishPlatform[]
   posts: PostHistoryItem[]
 }
 
@@ -81,6 +83,15 @@ function parseDashboardData(value: unknown): DashboardInitialData | null {
       })
     : []
 
+  const disabledPlatforms = Array.isArray(value.disabled_platforms)
+    ? value.disabled_platforms.flatMap((platform) =>
+        typeof platform === "string" &&
+        publishPlatforms.includes(platform as PublishPlatform)
+          ? [platform as PublishPlatform]
+          : []
+      )
+    : []
+
   return {
     user: {
       id: user.id,
@@ -90,6 +101,7 @@ function parseDashboardData(value: unknown): DashboardInitialData | null {
       loginProviders: parsedLoginProviders,
     },
     connections,
+    disabledPlatforms,
     posts,
   }
 }

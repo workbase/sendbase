@@ -65,6 +65,12 @@ import {
   PopoverTitle,
   PopoverTrigger,
 } from "@/components/ui/popover"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
 import { getStoredExtensionInstallation } from "@/lib/browser/extension-installation"
 import { cn } from "@/lib/utils"
 import {
@@ -124,6 +130,7 @@ const landingDefaultDestinations: PublishPlatform[] = [
   "x",
   "discord",
 ]
+const noDisabledPlatforms: PublishPlatform[] = []
 const loginProviders = [
   { id: "chzzk", label: "치지직으로 계속하기" },
   { id: "soop", label: "SOOP으로 계속하기" },
@@ -618,10 +625,12 @@ function ThreadReplyEditor({
 
 export function PostEditor({
   connections,
+  disabledPlatforms = noDisabledPlatforms,
   loginError,
   mode = "dashboard",
 }: {
   connections: PlatformConnection[]
+  disabledPlatforms?: PublishPlatform[]
   loginError?: string
   mode?: "dashboard" | "landing"
 }) {
@@ -635,6 +644,10 @@ export function PostEditor({
       ),
     [connections]
   )
+  const disabled = useMemo(
+    () => new Set(disabledPlatforms),
+    [disabledPlatforms]
+  )
   const defaultDestinations = useMemo(() => {
     if (mode === "landing") {
       return landingDefaultDestinations.filter((platform) =>
@@ -642,8 +655,8 @@ export function PostEditor({
       )
     }
 
-    return Array.from(connected)
-  }, [connected, mode])
+    return Array.from(connected).filter((platform) => !disabled.has(platform))
+  }, [connected, disabled, mode])
   const xPremium = useMemo(
     () =>
       hasXPremiumSetting(
@@ -792,8 +805,8 @@ export function PostEditor({
     if (savedDestinations === null) {
       saveDestinations(defaultDestinations)
     } else {
-      const restoredDestinations = savedDestinations.filter((platform) =>
-        connected.has(platform)
+      const restoredDestinations = savedDestinations.filter(
+        (platform) => connected.has(platform) && !disabled.has(platform)
       )
       reset((values) => ({
         ...values,
@@ -803,7 +816,7 @@ export function PostEditor({
           : null,
       }))
     }
-  }, [connected, defaultDestinations, mode, reset])
+  }, [connected, defaultDestinations, disabled, mode, reset])
 
   const editor = useEditor({
     immediatelyRender: false,
@@ -853,7 +866,10 @@ export function PostEditor({
           toast.error("게시물을 찾을 수 없습니다.")
           return
         }
-        const hasThreadDestination = detail.destinations.some(
+        const destinations = detail.destinations.filter(
+          (platform) => connected.has(platform) && !disabled.has(platform)
+        )
+        const hasThreadDestination = destinations.some(
           (platform) => platform === "threads" || platform === "x"
         )
         const contentHtml = hasThreadDestination
@@ -865,9 +881,9 @@ export function PostEditor({
         reset({
           title: detail.editorTitle,
           contentHtml,
-          destinations: detail.destinations,
+          destinations,
           threadReplies: hasThreadDestination ? detail.threadReplies : [],
-          tiktokOptions: detail.destinations.includes("tiktok")
+          tiktokOptions: destinations.includes("tiktok")
             ? { ...defaultTikTokPhotoPublishDraft }
             : null,
         })
@@ -890,7 +906,7 @@ export function PostEditor({
         )
       }
     },
-    [editor, reset]
+    [connected, disabled, editor, reset]
   )
 
   useEffect(() => {
@@ -1171,77 +1187,104 @@ export function PostEditor({
         name="destinations"
         render={({ field }) => (
           <div className="mb-4">
-            <div
-              className={cn(
-                "flex flex-wrap gap-2",
-                !isDestinationsReady && "invisible"
-              )}
-            >
-              {(Object.keys(platformLimits) as PublishPlatform[]).map(
-                (platform) => {
-                  const selected = field.value.includes(platform)
-                  const isConnected = connected.has(platform)
-
-                  return (
-                    <button
-                      key={platform}
-                      type="button"
-                      disabled={!isConnected}
-                      aria-pressed={selected}
-                      aria-label={platformLimits[platform].label}
-                      onClick={() => {
-                        const destinations = selected
-                          ? field.value.filter((item) => item !== platform)
-                          : [...field.value, platform]
-                        field.onChange(destinations)
-                        if (platform === "tiktok") {
-                          if (selected) setHasTikTokManualReview(false)
-                          setValue(
-                            "tiktokOptions",
-                            selected
-                              ? null
-                              : { ...defaultTikTokPhotoPublishDraft },
-                            { shouldDirty: true, shouldValidate: true }
+            <TooltipProvider>
+              <div
+                className={cn(
+                  "flex flex-wrap gap-2",
+                  !isDestinationsReady && "invisible"
+                )}
+              >
+                {(Object.keys(platformLimits) as PublishPlatform[]).map(
+                  (platform) => {
+                    const selected = field.value.includes(platform)
+                    const isConnected = connected.has(platform)
+                    const isUnderMaintenance = disabled.has(platform)
+                    const platformLabel = platformLimits[platform].label
+                    const toggle = (
+                      <button
+                        type="button"
+                        disabled={!isConnected || isUnderMaintenance}
+                        aria-pressed={selected}
+                        aria-label={
+                          isUnderMaintenance
+                            ? `${platformLabel}: 점검 중이에요`
+                            : platformLabel
+                        }
+                        onClick={() => {
+                          const destinations = selected
+                            ? field.value.filter((item) => item !== platform)
+                            : [...field.value, platform]
+                          field.onChange(destinations)
+                          if (platform === "tiktok") {
+                            if (selected) setHasTikTokManualReview(false)
+                            setValue(
+                              "tiktokOptions",
+                              selected
+                                ? null
+                                : { ...defaultTikTokPhotoPublishDraft },
+                              { shouldDirty: true, shouldValidate: true }
+                            )
+                          }
+                          const hasThreadDestination = destinations.some(
+                            (destination) =>
+                              destination === "threads" || destination === "x"
                           )
-                        }
-                        const hasThreadDestination = destinations.some(
-                          (destination) =>
-                            destination === "threads" || destination === "x"
-                        )
-                        if (!hasThreadDestination) {
-                          mergeThreadRepliesIntoMainEditor()
-                        }
-                        if (mode === "dashboard") {
-                          saveDestinations(destinations)
-                        }
-                      }}
-                      className={cn(
-                        "relative flex size-10 items-center justify-center rounded-full border text-sm font-medium transition-colors",
-                        selected
-                          ? platformToggleTone[platform]
-                          : "bg-card hover:bg-muted",
-                        !isConnected && "cursor-not-allowed opacity-50"
-                      )}
-                    >
-                      {selected ? (
-                        <span
-                          aria-hidden="true"
-                          className={cn(
-                            "absolute -top-3 left-1/2 size-1.5 -translate-x-1/2 rounded-full",
-                            platformStatusTone[platform]
-                          )}
+                          if (!hasThreadDestination) {
+                            mergeThreadRepliesIntoMainEditor()
+                          }
+                          if (mode === "dashboard") {
+                            saveDestinations(destinations)
+                          }
+                        }}
+                        className={cn(
+                          "relative flex size-10 items-center justify-center rounded-full border text-sm font-medium transition-colors",
+                          selected
+                            ? platformToggleTone[platform]
+                            : "bg-card hover:bg-muted",
+                          (!isConnected || isUnderMaintenance) &&
+                            "cursor-not-allowed opacity-50"
+                        )}
+                      >
+                        {selected ? (
+                          <span
+                            aria-hidden="true"
+                            className={cn(
+                              "absolute -top-3 left-1/2 size-1.5 -translate-x-1/2 rounded-full",
+                              platformStatusTone[platform]
+                            )}
+                          />
+                        ) : null}
+                        <PlatformLogo
+                          platform={platform}
+                          color={selected ? "currentColor" : undefined}
+                          className="size-5"
                         />
-                      ) : null}
-                      <PlatformLogo
-                        platform={platform}
-                        color={selected ? "currentColor" : undefined}
-                        className="size-5"
-                      />
-                    </button>
-                  )
-                }
-              )}
-            </div>
+                      </button>
+                    )
+
+                    if (!isUnderMaintenance) {
+                      return <span key={platform}>{toggle}</span>
+                    }
+
+                    return (
+                      <Tooltip key={platform}>
+                        <TooltipTrigger
+                          render={
+                            <span
+                              className="inline-flex rounded-full"
+                              tabIndex={0}
+                            >
+                              {toggle}
+                            </span>
+                          }
+                        />
+                        <TooltipContent>점검 중이에요</TooltipContent>
+                      </Tooltip>
+                    )
+                  }
+                )}
+              </div>
+            </TooltipProvider>
             {errors.destinations ? (
               <p className="mt-2 text-xs text-destructive">
                 {errors.destinations.message}

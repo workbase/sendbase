@@ -170,6 +170,21 @@ export type Database = {
           },
         ]
       }
+      platform_feature_flags: {
+        Row: {
+          enabled: boolean
+          platform: Database["public"]["Enums"]["publish_platform"]
+        }
+        Insert: {
+          enabled?: boolean
+          platform: Database["public"]["Enums"]["publish_platform"]
+        }
+        Update: {
+          enabled?: boolean
+          platform?: Database["public"]["Enums"]["publish_platform"]
+        }
+        Relationships: []
+      }
       post_destinations: {
         Row: {
           created_at: string

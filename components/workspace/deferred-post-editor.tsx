@@ -2,7 +2,7 @@
 
 import { lazy, Suspense, useEffect, useState } from "react"
 
-import type { PlatformConnection } from "@/lib/types"
+import type { PlatformConnection, PublishPlatform } from "@/lib/types"
 
 const PostEditor = lazy(() =>
   import("@/components/workspace/post-editor").then((module) => ({
@@ -21,8 +21,10 @@ function EditorSkeleton() {
 
 export function DeferredPostEditor({
   connections,
+  disabledPlatforms,
 }: {
   connections: PlatformConnection[]
+  disabledPlatforms: PublishPlatform[]
 }) {
   const [shouldLoad, setShouldLoad] = useState(false)
 
@@ -43,7 +45,10 @@ export function DeferredPostEditor({
 
   return (
     <Suspense fallback={<EditorSkeleton />}>
-      <PostEditor connections={connections} />
+      <PostEditor
+        connections={connections}
+        disabledPlatforms={disabledPlatforms}
+      />
     </Suspense>
   )
 }

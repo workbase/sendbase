@@ -43,17 +43,12 @@ Supabase
 • Always normalize and handle errors explicitly.
 • Auth flows must use official Supabase APIs only.
 
-
-Supabase Type Generation
-• After schema changes, tell user to regenerate types.
-
-
 Database Migrations
 • All schema changes via migrations only.
 • Use: supabase migration new
 • Never edit previous migration files.
 • Do not hand-write SQL outside migrations.
-• Instruct user to apply changes with: supabase db push
+• Instruct user to apply changes to local with: pnpm db:up
 
 
 Forms & Mutations

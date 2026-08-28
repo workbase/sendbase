@@ -10,7 +10,7 @@ import { getDashboardInitialData } from "@/lib/dashboard/queries"
 export default async function DashboardPage() {
   const dashboard = await getDashboardInitialData()
   if (!dashboard) redirect("/auth/clear-session")
-  const { posts, connections, user } = dashboard
+  const { posts, connections, disabledPlatforms, user } = dashboard
 
   return (
     <PostHistory initialPosts={posts}>
@@ -28,7 +28,10 @@ export default async function DashboardPage() {
       <div className="fixed top-3 right-3 z-20">
         <DashboardSettingsMenu user={user} />
       </div>
-      <DeferredPostEditor connections={connections} />
+      <DeferredPostEditor
+        connections={connections}
+        disabledPlatforms={disabledPlatforms}
+      />
     </PostHistory>
   )
 }

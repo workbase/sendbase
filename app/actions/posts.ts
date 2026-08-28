@@ -56,6 +56,8 @@ import type {
 const historyCursorSchema = z.string().datetime({ offset: true }).optional()
 const X_DAILY_POST_LIMIT_MESSAGE =
   "X에는 계정당 하루 최대 3개의 공지만 게시할 수 있습니다."
+const PLATFORM_MAINTENANCE_MESSAGE =
+  "현재 점검 중인 플랫폼이 포함되어 있습니다. 새로고침 후 다시 시도해 주세요."
 
 type PersistPostResult =
   | { ok: false; error: string }
@@ -222,8 +224,11 @@ async function persistPost(
     p_tiktok_publish_options: tiktokOptions,
   })
   if (error) {
-    if (error.message === X_DAILY_POST_LIMIT_MESSAGE) {
-      return { ok: false, error: X_DAILY_POST_LIMIT_MESSAGE }
+    if (
+      error.message === X_DAILY_POST_LIMIT_MESSAGE ||
+      error.message === PLATFORM_MAINTENANCE_MESSAGE
+    ) {
+      return { ok: false, error: error.message }
     }
     throw new Error(`게시물을 저장하지 못했습니다: ${error.message}`)
   }
