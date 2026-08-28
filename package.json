@@ -10,7 +10,9 @@
     "test": "vitest run",
     "lint": "eslint",
     "format": "prettier --write \"**/*.{ts,tsx}\"",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "db:up": "supabase migration up --local",
+    "db:reset": "supabase db reset --local"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",

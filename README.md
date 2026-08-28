@@ -6,11 +6,14 @@ Threads, X, Discord, 네이버 카페, SOOP 게시판에 하나의 게시물을 
 
 1. `.env.example`을 참고해 `.env.local`에 Supabase와 각 OAuth 앱의 값을 추가합니다.
 2. `TOKEN_ENCRYPTION_KEY`에는 32자 이상의 임의 문자열을 사용합니다.
-3. Supabase 마이그레이션을 적용합니다.
+3. 로컬 Supabase를 실행하고 마이그레이션을 적용합니다.
 
 ```bash
-supabase db push
+pnpm supabase start
+pnpm db:up
 ```
+
+로컬 데이터베이스를 마이그레이션 기준으로 다시 만들려면 `pnpm db:reset`을 사용합니다. 이 명령은 로컬 데이터만 삭제합니다. 원격 데이터베이스 마이그레이션은 `main` 브랜치에 추가된 마이그레이션을 GitHub Actions가 자동으로 적용합니다.
 
 4. OAuth 앱에 아래 콜백 URL을 등록합니다.
 
