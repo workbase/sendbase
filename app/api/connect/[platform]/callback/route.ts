@@ -4,9 +4,11 @@ import { NextResponse } from "next/server"
 import { encryptToken } from "@/lib/auth/crypto"
 import { appOrigin } from "@/lib/auth/providers"
 import { getCurrentUser } from "@/lib/auth/session"
+import { queryTikTokCreatorInfoWithToken } from "@/lib/platforms/tiktok/client"
+import { exchangeTikTokAuthorizationCode } from "@/lib/platforms/tiktok/oauth"
 import { createAdminClient } from "@/lib/supabase/admin"
 
-type ApiPlatform = "threads" | "x" | "discord"
+type ApiPlatform = "threads" | "x" | "discord" | "tiktok"
 type OAuthTokens = {
   accessToken: string
   refreshToken: string | null
@@ -15,7 +17,12 @@ type OAuthTokens = {
 }
 
 function isApiPlatform(value: string): value is ApiPlatform {
-  return value === "threads" || value === "x" || value === "discord"
+  return (
+    value === "threads" ||
+    value === "x" ||
+    value === "discord" ||
+    value === "tiktok"
+  )
 }
 
 function required(name: string) {
@@ -45,6 +52,19 @@ async function exchange(
   let body: URLSearchParams
   let authorization: string | null = null
 
+  if (platform === "tiktok") {
+    const tokens = await exchangeTikTokAuthorizationCode(code, redirectUri)
+    return {
+      accessToken: tokens.accessToken,
+      refreshToken: tokens.refreshToken,
+      expiresIn: tokens.expiresIn,
+      raw: {
+        open_id: tokens.openId,
+        scopes: tokens.scopes,
+        refresh_expires_in: tokens.refreshExpiresIn,
+      },
+    } satisfies OAuthTokens
+  }
   if (platform === "threads") {
     url = "https://graph.threads.net/oauth/access_token"
     body = new URLSearchParams({
@@ -108,6 +128,22 @@ async function exchange(
 }
 
 async function profile(platform: ApiPlatform, tokens: OAuthTokens) {
+  if (platform === "tiktok") {
+    const creator = await queryTikTokCreatorInfoWithToken(tokens.accessToken)
+    return {
+      id: value(tokens.raw, "open_id"),
+      name: creator.creatorNickname,
+      settings: {
+        scopes: Array.isArray(tokens.raw.scopes) ? tokens.raw.scopes : [],
+        refreshExpiresAt:
+          typeof tokens.raw.refresh_expires_in === "number"
+            ? new Date(
+                Date.now() + tokens.raw.refresh_expires_in * 1000
+              ).toISOString()
+            : null,
+      },
+    }
+  }
   if (platform === "discord") {
     const webhook = record(tokens.raw.webhook)
     const name = value(webhook, "name") ?? "Discord 채널"

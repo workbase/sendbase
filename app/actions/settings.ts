@@ -12,9 +12,13 @@ import {
   soopSettingsInputSchema,
 } from "@/lib/platforms/board-links"
 import { X_PREMIUM_SETTING_KEY } from "@/lib/platforms/limits"
+import {
+  getTikTokAccessTokenForDisconnect,
+  revokeTikTokConnectionToken,
+} from "@/lib/platforms/tiktok/oauth"
 import { createAdminClient } from "@/lib/supabase/admin"
 
-const apiPlatformSchema = z.enum(["threads", "x", "discord"])
+const apiPlatformSchema = z.enum(["threads", "x", "discord", "tiktok"])
 const xPremiumSchema = z.boolean()
 const deleteAccountSchema = z.literal("계정 삭제", {
   error: "계정을 삭제하려면 '계정 삭제'를 정확히 입력해 주세요.",
@@ -74,6 +78,10 @@ export async function disconnectPlatformAction(formData: FormData) {
   if (!parsed.success) throw new Error("지원하지 않는 플랫폼입니다.")
 
   const supabase = createAdminClient()
+  if (parsed.data === "tiktok") {
+    const token = await getTikTokAccessTokenForDisconnect(user.id)
+    await revokeTikTokConnectionToken(token)
+  }
   const { error } = await supabase
     .from("platform_connections")
     .delete()

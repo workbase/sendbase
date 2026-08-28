@@ -56,6 +56,11 @@ const apiPlatforms = [
     name: "Discord",
     description: "선택한 채널에 웹훅 메시지 게시",
   },
+  {
+    platform: "tiktok",
+    name: "TikTok",
+    description: "사진 게시물을 내 TikTok 계정에 직접 게시",
+  },
 ] as const
 
 const loginProviderNames: Record<LoginProvider, string> = {

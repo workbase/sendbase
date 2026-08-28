@@ -1,5 +1,6 @@
 "use client"
 
+import dynamic from "next/dynamic"
 import {
   useCallback,
   useEffect,
@@ -82,6 +83,8 @@ import {
 } from "@/lib/posts/editor-link"
 import {
   editorHtmlToDiscordCounterText,
+  editorHtmlToTikTokDescriptionText,
+  editorImageUrlsFromHtml,
   editorHtmlToSocialCounterText,
   mergeEditorHtml,
 } from "@/lib/posts/editor-output"
@@ -103,6 +106,14 @@ import type {
   PublishPlatform,
 } from "@/lib/types"
 import { publishPlatforms } from "@/lib/types"
+import {
+  defaultTikTokPhotoPublishDraft,
+  type TikTokPhotoPublishDraft,
+} from "@/lib/platforms/tiktok/schema"
+
+const TikTokPublishOptions = dynamic(
+  () => import("@/components/workspace/tiktok-publish-options")
+)
 
 const selectedPlatformsStorageKey = "sendbase:selected-post-platforms"
 const landingEditorTitle = "내 방송을 놓치는 팬이 없도록"
@@ -658,6 +669,7 @@ export function PostEditor({
     initialLinkDialogState
   )
   const [activeEditor, setActiveEditor] = useState<TiptapEditor | null>(null)
+  const [hasTikTokManualReview, setHasTikTokManualReview] = useState(false)
   const imageInputRef = useRef<HTMLInputElement>(null)
   const editorContainerRef = useRef<HTMLDivElement>(null)
   const previewImageUrlRef = useRef<string | null>(null)
@@ -686,6 +698,9 @@ export function PostEditor({
       contentHtml: initialContentHtml,
       destinations: defaultDestinations,
       threadReplies: [],
+      tiktokOptions: defaultDestinations.includes("tiktok")
+        ? { ...defaultTikTokPhotoPublishDraft }
+        : null,
     },
   })
   const {
@@ -698,6 +713,16 @@ export function PostEditor({
   const contentHtml = useWatch({ control, name: "contentHtml" })
   const selectedDestinations = useWatch({ control, name: "destinations" })
   const threadReplies = useWatch({ control, name: "threadReplies" })
+  const isTikTokSelected = selectedDestinations.includes("tiktok")
+  const tiktokImageCount = useMemo(
+    () => editorImageUrlsFromHtml(contentHtml).length,
+    [contentHtml]
+  )
+  const tiktokDescriptionLength = useMemo(
+    () => editorHtmlToTikTokDescriptionText(contentHtml).length,
+    [contentHtml]
+  )
+  const hasTikTokWithoutImage = isTikTokSelected && tiktokImageCount === 0
   const shouldShowTitle = requiresPostTitle(selectedDestinations)
   const threadDestinations = useMemo(
     () =>
@@ -710,7 +735,8 @@ export function PostEditor({
   const nonThreadDestinations = useMemo(
     () =>
       selectedDestinations.filter(
-        (platform) => platform !== "threads" && platform !== "x"
+        (platform) =>
+          platform !== "threads" && platform !== "x" && platform !== "tiktok"
       ),
     [selectedDestinations]
   )
@@ -766,11 +792,15 @@ export function PostEditor({
     if (savedDestinations === null) {
       saveDestinations(defaultDestinations)
     } else {
+      const restoredDestinations = savedDestinations.filter((platform) =>
+        connected.has(platform)
+      )
       reset((values) => ({
         ...values,
-        destinations: savedDestinations.filter((platform) =>
-          connected.has(platform)
-        ),
+        destinations: restoredDestinations,
+        tiktokOptions: restoredDestinations.includes("tiktok")
+          ? { ...defaultTikTokPhotoPublishDraft }
+          : null,
       }))
     }
   }, [connected, defaultDestinations, mode, reset])
@@ -837,6 +867,9 @@ export function PostEditor({
           contentHtml,
           destinations: detail.destinations,
           threadReplies: hasThreadDestination ? detail.threadReplies : [],
+          tiktokOptions: detail.destinations.includes("tiktok")
+            ? { ...defaultTikTokPhotoPublishDraft }
+            : null,
         })
         editor?.commands.setContent(contentHtml, { emitUpdate: false })
         requestAnimationFrame(() => {
@@ -1084,6 +1117,9 @@ export function PostEditor({
           contentHtml: "<p></p>",
           destinations: values.destinations,
           threadReplies: [],
+          tiktokOptions: values.destinations.includes("tiktok")
+            ? { ...defaultTikTokPhotoPublishDraft }
+            : null,
         })
         editor?.commands.setContent("<p></p>")
       } catch (error) {
@@ -1118,7 +1154,9 @@ export function PostEditor({
         <Button
           className="h-10 shadow-sm"
           onClick={publish}
-          disabled={isPublishing}
+          disabled={
+            isPublishing || hasTikTokWithoutImage || hasTikTokManualReview
+          }
         >
           <span>{isPublishing ? "1분 이내로 완료돼요" : "공지 작성하기"}</span>
           {isPublishing ? <LoaderCircleIcon className="animate-spin" /> : null}
@@ -1156,6 +1194,16 @@ export function PostEditor({
                           ? field.value.filter((item) => item !== platform)
                           : [...field.value, platform]
                         field.onChange(destinations)
+                        if (platform === "tiktok") {
+                          if (selected) setHasTikTokManualReview(false)
+                          setValue(
+                            "tiktokOptions",
+                            selected
+                              ? null
+                              : { ...defaultTikTokPhotoPublishDraft },
+                            { shouldDirty: true, shouldValidate: true }
+                          )
+                        }
                         const hasThreadDestination = destinations.some(
                           (destination) =>
                             destination === "threads" || destination === "x"
@@ -1202,6 +1250,34 @@ export function PostEditor({
           </div>
         )}
       />
+
+      {isTikTokSelected ? (
+        <Controller
+          control={control}
+          name="tiktokOptions"
+          render={({ field }) => (
+            <TikTokPublishOptions
+              value={
+                (field.value as TikTokPhotoPublishDraft | null | undefined) ?? {
+                  ...defaultTikTokPhotoPublishDraft,
+                }
+              }
+              imageCount={tiktokImageCount}
+              descriptionLength={tiktokDescriptionLength}
+              errorMessage={
+                errors.tiktokOptions?.message ??
+                errors.tiktokOptions?.privacyLevel?.message ??
+                errors.tiktokOptions?.musicUsageAccepted?.message ??
+                errors.tiktokOptions?.commercialContent?.message ??
+                errors.tiktokOptions?.brandedContentPolicyAccepted?.message ??
+                errors.tiktokOptions?.photoCoverIndex?.message
+              }
+              onChange={field.onChange}
+              onManualReviewChange={setHasTikTokManualReview}
+            />
+          )}
+        />
+      ) : null}
 
       <Card
         radius="top"

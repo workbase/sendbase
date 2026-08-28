@@ -19,6 +19,8 @@ supabase db push
 
 5. 네이버 카페와 SOOP 게시에는 `guide/extension.md`의 센드베이스 게시글 플러그인이 필요합니다. 운영 도메인을 확장 프로그램의 `content_scripts.matches`에 추가하세요.
 
+TikTok 일괄 발행을 구현하거나 운영할 때는 [`guide/tiktok-content-posting.md`](guide/tiktok-content-posting.md)의 API, 이미지, OAuth, 웹훅 및 폴링 지침을 따르세요.
+
 ## 개발
 
 ```bash

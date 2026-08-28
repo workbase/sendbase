@@ -14,6 +14,20 @@ import {
 } from "@/lib/platforms/limits"
 import { createApiPlatformPublisher } from "@/lib/platforms/publish"
 import {
+  queryTikTokCreatorInfo,
+  TikTokApiError,
+} from "@/lib/platforms/tiktok/client"
+import {
+  prepareTikTokPhotoImages,
+  verifyTikTokPhotoImageUrls,
+} from "@/lib/platforms/tiktok/images"
+import { initializeTikTokPhotoPost } from "@/lib/platforms/tiktok/publish"
+import {
+  tiktokPhotoPublishOptionsSchema,
+  validateTikTokPhotoPublishOptions,
+  type TikTokPhotoPublishOptions,
+} from "@/lib/platforms/tiktok/schema"
+import {
   htmlToDiscordMarkdown,
   htmlToPlainText,
   htmlToPlainTextWithUrls,
@@ -56,7 +70,7 @@ type PreparedThreadReply = {
   imageUrls: string[]
 }
 
-const apiPlatformSchema = z.enum(["threads", "x", "discord"])
+const apiPlatformSchema = z.enum(["threads", "x", "discord", "tiktok"])
 const extensionPlatformSchema = z.enum(["naver_cafe", "soop"])
 const postIdSchema = z.string().uuid()
 
@@ -89,6 +103,52 @@ export async function getPostDetailAction(postId: string) {
   return getPostDetail(user.id, z.string().uuid().parse(postId))
 }
 
+export async function getTikTokCreatorInfoAction() {
+  const user = await requireUser()
+  const supabase = createAdminClient()
+  const [creatorInfo, manualReviewResult] = await Promise.all([
+    queryTikTokCreatorInfo(user.id),
+    supabase
+      .from("post_destinations")
+      .select("id, posts!inner(user_id)")
+      .eq("platform", "tiktok")
+      .eq("requires_manual_review", true)
+      .is("external_publish_id", null)
+      .eq("posts.user_id", user.id)
+      .limit(1),
+  ])
+  if (manualReviewResult.error)
+    throw new Error(manualReviewResult.error.message)
+  return {
+    ...creatorInfo,
+    requiresManualReview: (manualReviewResult.data?.length ?? 0) > 0,
+  }
+}
+
+export async function acknowledgeTikTokManualReviewAction() {
+  const user = await requireUser()
+  const supabase = createAdminClient()
+  const { data: posts, error: postsError } = await supabase
+    .from("posts")
+    .select("id")
+    .eq("user_id", user.id)
+  if (postsError) throw new Error(postsError.message)
+  const postIds = (posts ?? []).map((post) => post.id)
+  if (postIds.length === 0) return { ok: true }
+  const { error } = await supabase
+    .from("post_destinations")
+    .update({
+      requires_manual_review: false,
+      updated_at: new Date().toISOString(),
+    })
+    .in("post_id", postIds)
+    .eq("platform", "tiktok")
+    .eq("status", "failed")
+    .is("external_publish_id", null)
+  if (error) throw new Error(error.message)
+  return { ok: true }
+}
+
 function validateLimits(
   platforms: PublishPlatform[],
   text: string,
@@ -115,6 +175,11 @@ function validateLimits(
         `${prefix}${limit.label} 이미지 제한(${limit.maxImages}개)을 초과했습니다.`
       )
     }
+    if (images.length < limit.minImages) {
+      throw new Error(
+        `${prefix}${limit.label}에는 이미지를 ${limit.minImages}개 이상 추가해 주세요.`
+      )
+    }
     if (limit.maxLinks && countLinks(text) > limit.maxLinks) {
       throw new Error(
         `${prefix}${limit.label} 링크 제한(${limit.maxLinks}개)을 초과했습니다.`
@@ -126,7 +191,8 @@ function validateLimits(
 async function persistPost(
   userId: string,
   input: z.infer<typeof postFormSchema>,
-  threadReplies: PreparedThreadReply[]
+  threadReplies: PreparedThreadReply[],
+  tiktokOptions: TikTokPhotoPublishOptions | null
 ): Promise<PersistPostResult> {
   const html = sanitizeEditorHtml(input.contentHtml)
   const text = [
@@ -153,6 +219,7 @@ async function persistPost(
     p_thread_replies: threadReplies.map((reply) => ({
       contentHtml: reply.html,
     })),
+    p_tiktok_publish_options: tiktokOptions,
   })
   if (error) {
     if (error.message === X_DAILY_POST_LIMIT_MESSAGE) {
@@ -188,7 +255,8 @@ export async function publishPostAction(
       platform === "threads" || platform === "x"
   )
   const nonThreadPlatforms = parsed.data.destinations.filter(
-    (platform) => platform !== "threads" && platform !== "x"
+    (platform) =>
+      platform !== "threads" && platform !== "x" && platform !== "tiktok"
   )
   const supabase = createAdminClient()
   const { data: xConnection, error: xConnectionError } =
@@ -248,6 +316,38 @@ export async function publishPostAction(
     mergedDiscordContent,
     mergedImageUrls
   )
+  let tiktokOptions: TikTokPhotoPublishOptions | null = null
+  if (parsed.data.destinations.includes("tiktok")) {
+    if (!parsed.data.tiktokOptions)
+      throw new Error("TikTok 게시 설정을 입력해 주세요.")
+    const description = htmlToPlainText(sanitized)
+    validateLimits(["tiktok"], description, description, images)
+    const { data: unresolved, error: unresolvedError } = await supabase
+      .from("post_destinations")
+      .select("id, posts!inner(user_id)")
+      .eq("platform", "tiktok")
+      .eq("requires_manual_review", true)
+      .is("external_publish_id", null)
+      .eq("posts.user_id", user.id)
+      .limit(1)
+    if (unresolvedError) throw new Error(unresolvedError.message)
+    if ((unresolved?.length ?? 0) > 0) {
+      throw new Error(
+        "이전 TikTok 요청 결과를 확인해야 합니다. TikTok 계정을 확인한 뒤 게시 설정에서 확인 완료를 눌러 주세요."
+      )
+    }
+    const [creatorInfo, tiktokPhotoImages] = await Promise.all([
+      queryTikTokCreatorInfo(user.id),
+      prepareTikTokPhotoImages(user.id, images),
+    ])
+    tiktokOptions = validateTikTokPhotoPublishOptions({
+      draft: parsed.data.tiktokOptions,
+      description,
+      imageCount: images.length,
+      creatorInfo,
+    })
+    await verifyTikTokPhotoImageUrls(tiktokPhotoImages)
+  }
   const extensionPlatforms = parsed.data.destinations.filter(
     (platform): platform is "naver_cafe" | "soop" =>
       platform === "naver_cafe" || platform === "soop"
@@ -273,7 +373,12 @@ export async function publishPostAction(
     ),
   ])
 
-  const persistedPost = await persistPost(user.id, parsed.data, threadReplies)
+  const persistedPost = await persistPost(
+    user.id,
+    parsed.data,
+    threadReplies,
+    tiktokOptions
+  )
   if (!persistedPost.ok) {
     return { ok: false, error: persistedPost.error }
   }
@@ -371,12 +476,19 @@ export async function publishApiDestinationsAction(
     .eq("post_id", postId)
     .eq("status", "pending")
     .in("platform", apiPlatformSchema.options)
-    .select("platform")
+    .select("platform, publish_options")
   if (claimError) throw new Error(claimError.message)
 
   const platforms = (claimedDestinations ?? []).flatMap((destination) => {
     const parsedPlatform = apiPlatformSchema.safeParse(destination.platform)
-    return parsedPlatform.success ? [parsedPlatform.data] : []
+    return parsedPlatform.success
+      ? [
+          {
+            platform: parsedPlatform.data,
+            publishOptions: destination.publish_options,
+          },
+        ]
+      : []
   })
   const sanitized = sanitizeEditorHtml(post.content_html)
   const socialText = htmlToPlainTextWithUrls(sanitized)
@@ -397,84 +509,135 @@ export async function publishApiDestinationsAction(
   const mergedImageUrls = imageUrlsFromHtml(mergedHtml)
 
   const results = await Promise.all(
-    platforms.map(async (platform): Promise<PublishDestinationResult> => {
-      try {
-        const publishToPlatform = await createApiPlatformPublisher(
-          platform,
-          user.id
-        )
-        const usesThread = platform === "threads" || platform === "x"
-        const published = await publishToPlatform({
-          title: post.title,
-          text: usesThread ? socialText : mergedSocialText,
-          discordText: usesThread ? discordContent : mergedDiscordContent,
-          imageUrls: usesThread ? imageUrls : mergedImageUrls,
-        })
+    platforms.map(
+      async ({
+        platform,
+        publishOptions,
+      }): Promise<PublishDestinationResult> => {
+        let tiktokInitializationStarted = false
+        let tiktokPublishId: string | null = null
+        try {
+          if (platform === "tiktok") {
+            const options =
+              tiktokPhotoPublishOptionsSchema.parse(publishOptions)
+            const photoImages = await prepareTikTokPhotoImages(
+              user.id,
+              imageUrls
+            )
+            await verifyTikTokPhotoImageUrls(photoImages)
+            tiktokInitializationStarted = true
+            const initialized = await initializeTikTokPhotoPost(
+              user.id,
+              options,
+              photoImages
+            )
+            tiktokPublishId = initialized.publishId
+            const { error } = await supabase
+              .from("post_destinations")
+              .update({
+                status: "processing",
+                external_publish_id: initialized.publishId,
+                provider_status: "PROCESSING_DOWNLOAD",
+                next_poll_at: new Date(Date.now() + 15_000).toISOString(),
+                error_message: null,
+                updated_at: new Date().toISOString(),
+              })
+              .eq("post_id", postId)
+              .eq("platform", platform)
+            if (error) throw new Error(error.message)
+            return {
+              platform,
+              ok: true,
+              message: "TikTok에서 처리 중입니다.",
+            }
+          }
+          const publishToPlatform = await createApiPlatformPublisher(
+            platform,
+            user.id
+          )
+          const usesThread = platform === "threads" || platform === "x"
+          const published = await publishToPlatform({
+            title: post.title,
+            text: usesThread ? socialText : mergedSocialText,
+            discordText: usesThread ? discordContent : mergedDiscordContent,
+            imageUrls: usesThread ? imageUrls : mergedImageUrls,
+          })
 
-        if (usesThread) {
+          if (usesThread) {
+            const { error } = await supabase
+              .from("post_destinations")
+              .update({
+                external_post_id: published.id,
+                external_url: published.url,
+                updated_at: new Date().toISOString(),
+              })
+              .eq("post_id", postId)
+              .eq("platform", platform)
+            if (error) throw new Error(error.message)
+
+            let replyToId = published.id
+            for (const reply of threadReplies) {
+              const replyResult = await publishToPlatform({
+                title: "",
+                text: reply.text,
+                discordText: reply.text,
+                imageUrls: reply.imageUrls,
+                replyToId,
+              })
+              replyToId = replyResult.id
+            }
+          }
+
           const { error } = await supabase
             .from("post_destinations")
             .update({
+              status: "published",
               external_post_id: published.id,
               external_url: published.url,
+              error_message: null,
               updated_at: new Date().toISOString(),
             })
             .eq("post_id", postId)
             .eq("platform", platform)
           if (error) throw new Error(error.message)
 
-          let replyToId = published.id
-          for (const reply of threadReplies) {
-            const replyResult = await publishToPlatform({
-              title: "",
-              text: reply.text,
-              discordText: reply.text,
-              imageUrls: reply.imageUrls,
-              replyToId,
+          return {
+            platform,
+            ok: true,
+            message: published.warning ?? "게시되었습니다.",
+          }
+        } catch (error) {
+          const message =
+            error instanceof Error ? error.message : "게시하지 못했습니다."
+          const uncertainTikTokInitialization =
+            platform === "tiktok" &&
+            tiktokInitializationStarted &&
+            !(error instanceof TikTokApiError)
+          const { error: updateError } = await supabase
+            .from("post_destinations")
+            .update({
+              status: "failed",
+              error_message: message,
+              requires_manual_review: uncertainTikTokInitialization,
+              external_publish_id: tiktokPublishId,
+              next_poll_at:
+                uncertainTikTokInitialization && tiktokPublishId
+                  ? new Date(Date.now() + 10 * 60_000).toISOString()
+                  : null,
+              updated_at: new Date().toISOString(),
             })
-            replyToId = replyResult.id
+            .eq("post_id", postId)
+            .eq("platform", platform)
+          return {
+            platform,
+            ok: false,
+            message: updateError
+              ? `${message} 결과 상태도 저장하지 못했습니다: ${updateError.message}`
+              : message,
           }
         }
-
-        const { error } = await supabase
-          .from("post_destinations")
-          .update({
-            status: "published",
-            external_post_id: published.id,
-            external_url: published.url,
-            error_message: null,
-            updated_at: new Date().toISOString(),
-          })
-          .eq("post_id", postId)
-          .eq("platform", platform)
-        if (error) throw new Error(error.message)
-
-        return {
-          platform,
-          ok: true,
-          message: published.warning ?? "게시되었습니다.",
-        }
-      } catch (error) {
-        const message =
-          error instanceof Error ? error.message : "게시하지 못했습니다."
-        const { error: updateError } = await supabase
-          .from("post_destinations")
-          .update({
-            status: "failed",
-            error_message: message,
-            updated_at: new Date().toISOString(),
-          })
-          .eq("post_id", postId)
-          .eq("platform", platform)
-        return {
-          platform,
-          ok: false,
-          message: updateError
-            ? `${message} 결과 상태도 저장하지 못했습니다: ${updateError.message}`
-            : message,
-        }
       }
-    })
+    )
   )
 
   await finalizePost(postId)
@@ -534,7 +697,8 @@ async function finalizePost(postId: string) {
   if (error) throw new Error(error.message)
   const statuses = (data ?? []).map((row) => row.status as string)
   const pending = statuses.some(
-    (status) => status === "pending" || status === "publishing"
+    (status) =>
+      status === "pending" || status === "publishing" || status === "processing"
   )
   if (pending) return
   const publishedCount = statuses.filter(

@@ -45,9 +45,11 @@
   --color-platform-soop: var(--platform-soop);
   --color-platform-threads: var(--platform-threads);
   --color-platform-x: var(--platform-x);
+  --color-platform-tiktok: var(--platform-tiktok);
   --color-platform-soop-icon: var(--platform-soop-icon);
   --color-platform-threads-icon: var(--platform-threads-icon);
   --color-platform-x-icon: var(--platform-x-icon);
+  --color-platform-tiktok-icon: var(--platform-tiktok-icon);
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
@@ -66,9 +68,10 @@
 }
 
 :root {
-  --font-pretendard: "Pretendard Variable", Pretendard, -apple-system,
-    BlinkMacSystemFont, system-ui, Roboto, "Helvetica Neue", "Segoe UI",
-    "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", sans-serif;
+  --font-pretendard:
+    "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont,
+    system-ui, Roboto, "Helvetica Neue", "Segoe UI", "Apple SD Gothic Neo",
+    "Noto Sans KR", "Malgun Gothic", sans-serif;
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
   --editor-card-uplight: var(--foreground);
@@ -109,12 +112,14 @@
   --platform-soop: #2943af;
   --platform-threads: #000000;
   --platform-x: #000000;
+  --platform-tiktok: #000000;
   --platform-chzzk-icon: var(--platform-chzzk);
   --platform-cime-icon: var(--platform-cime);
   --platform-discord-icon: var(--platform-discord);
   --platform-soop-icon: var(--platform-soop);
   --platform-threads-icon: var(--platform-threads);
   --platform-x-icon: var(--platform-x);
+  --platform-tiktok-icon: var(--platform-tiktok);
 }
 
 .dark {
@@ -155,6 +160,7 @@
   --platform-soop-icon: #93a5ff;
   --platform-threads-icon: oklch(0.985 0 0);
   --platform-x-icon: oklch(0.985 0 0);
+  --platform-tiktok-icon: oklch(0.985 0 0);
 }
 
 @layer base {

@@ -83,6 +83,21 @@ export function editorHtmlToSocialCounterText(html: string) {
   return editorHtmlToCounterText(replaceEditorLinksWithUrls(html))
 }
 
+/** Mirrors htmlToPlainText for TikTok's description counter. */
+export function editorHtmlToTikTokDescriptionText(html: string) {
+  return editorHtmlToCounterText(html)
+}
+
+export function editorImageUrlsFromHtml(html: string) {
+  const urls = new Set<string>()
+  const imagePattern = /<img\b[^>]*\bsrc=(?:"([^"]+)"|'([^']+)')[^>]*>/gi
+  for (const match of html.matchAll(imagePattern)) {
+    const url = match[1] ?? match[2]
+    if (url) urls.add(decodeEditorHtmlEntities(url))
+  }
+  return Array.from(urls)
+}
+
 export function editorHtmlToDiscordCounterText(html: string) {
   return editorHtmlToCounterText(
     replaceEditorFormattingWithDiscordMarkdown(html)

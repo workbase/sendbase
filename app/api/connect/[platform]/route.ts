@@ -4,11 +4,17 @@ import { NextResponse } from "next/server"
 
 import { appOrigin } from "@/lib/auth/providers"
 import { getCurrentUser } from "@/lib/auth/session"
+import { createTikTokAuthorizeUrl } from "@/lib/platforms/tiktok/oauth"
 
-type ApiPlatform = "threads" | "x" | "discord"
+type ApiPlatform = "threads" | "x" | "discord" | "tiktok"
 
 function isApiPlatform(value: string): value is ApiPlatform {
-  return value === "threads" || value === "x" || value === "discord"
+  return (
+    value === "threads" ||
+    value === "x" ||
+    value === "discord" ||
+    value === "tiktok"
+  )
 }
 
 function required(name: string) {
@@ -57,16 +63,20 @@ export async function GET(
       )
       authorizeUrl.searchParams.set("code_challenge", challenge)
       authorizeUrl.searchParams.set("code_challenge_method", "S256")
-    } else {
+    } else if (platform === "discord") {
       authorizeUrl = new URL("https://discord.com/oauth2/authorize")
       authorizeUrl.searchParams.set("client_id", required("DISCORD_CLIENT_ID"))
       authorizeUrl.searchParams.set("scope", "identify webhook.incoming")
       authorizeUrl.searchParams.set("prompt", "consent")
+    } else {
+      authorizeUrl = createTikTokAuthorizeUrl({ redirectUri, state })
     }
 
-    authorizeUrl.searchParams.set("response_type", "code")
-    authorizeUrl.searchParams.set("redirect_uri", redirectUri)
-    authorizeUrl.searchParams.set("state", state)
+    if (platform !== "tiktok") {
+      authorizeUrl.searchParams.set("response_type", "code")
+      authorizeUrl.searchParams.set("redirect_uri", redirectUri)
+      authorizeUrl.searchParams.set("state", state)
+    }
     const cookieStore = await cookies()
     cookieStore.set(
       `connect_state_${platform}`,

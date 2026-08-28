@@ -174,33 +174,57 @@ export type Database = {
         Row: {
           created_at: string
           error_message: string | null
+          external_publish_id: string | null
           external_post_id: string | null
           external_url: string | null
           id: string
+          last_polled_at: string | null
+          next_poll_at: string | null
           platform: Database["public"]["Enums"]["publish_platform"]
+          poll_attempt_count: number
           post_id: string
+          provider_status: string | null
+          publicly_available: boolean | null
+          publish_options: Json | null
+          requires_manual_review: boolean
           status: Database["public"]["Enums"]["destination_status"]
           updated_at: string
         }
         Insert: {
           created_at?: string
           error_message?: string | null
+          external_publish_id?: string | null
           external_post_id?: string | null
           external_url?: string | null
           id?: string
+          last_polled_at?: string | null
+          next_poll_at?: string | null
           platform: Database["public"]["Enums"]["publish_platform"]
+          poll_attempt_count?: number
           post_id: string
+          provider_status?: string | null
+          publicly_available?: boolean | null
+          publish_options?: Json | null
+          requires_manual_review?: boolean
           status?: Database["public"]["Enums"]["destination_status"]
           updated_at?: string
         }
         Update: {
           created_at?: string
           error_message?: string | null
+          external_publish_id?: string | null
           external_post_id?: string | null
           external_url?: string | null
           id?: string
+          last_polled_at?: string | null
+          next_poll_at?: string | null
           platform?: Database["public"]["Enums"]["publish_platform"]
+          poll_attempt_count?: number
           post_id?: string
+          provider_status?: string | null
+          publicly_available?: boolean | null
+          publish_options?: Json | null
+          requires_manual_review?: boolean
           status?: Database["public"]["Enums"]["destination_status"]
           updated_at?: string
         }
@@ -213,6 +237,30 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      tiktok_webhook_events: {
+        Row: {
+          created_at: string
+          event_key: string
+          event_name: string
+          id: string
+          publish_id: string
+        }
+        Insert: {
+          created_at?: string
+          event_key: string
+          event_name: string
+          id?: string
+          publish_id: string
+        }
+        Update: {
+          created_at?: string
+          event_key?: string
+          event_name?: string
+          id?: string
+          publish_id?: string
+        }
+        Relationships: []
       }
       posts: {
         Row: {
@@ -281,21 +329,42 @@ export type Database = {
           p_image_metadata: Json
           p_image_urls: string[]
           p_thread_replies: Json
+          p_tiktok_publish_options: Json
           p_title: string
           p_user_id: string
         }
         Returns: string
       }
+      finalize_post_status: {
+        Args: { p_post_id: string }
+        Returns: undefined
+      }
       get_dashboard_initial_data: {
         Args: { p_limit?: number; p_now: string; p_token_hash: string }
         Returns: Json
       }
+      reconcile_tiktok_publish_status: {
+        Args: {
+          p_destination_status: Database["public"]["Enums"]["destination_status"]
+          p_event_key: string | null
+          p_event_name: string | null
+          p_fail_reason: string | null
+          p_next_poll_at: string | null
+          p_provider_status: string
+          p_public_post_id: string | null
+          p_publicly_available: boolean | null
+          p_publish_id: string
+        }
+        Returns: string
+      }
     }
     Enums: {
-      destination_status: "pending" | "publishing" | "published" | "failed"
+      destination_status:
+        "pending" | "publishing" | "processing" | "published" | "failed"
       login_provider: "chzzk" | "soop" | "cime"
       post_status: "draft" | "publishing" | "published" | "partial" | "failed"
-      publish_platform: "threads" | "x" | "discord" | "naver_cafe" | "soop"
+      publish_platform:
+        "threads" | "x" | "discord" | "tiktok" | "naver_cafe" | "soop"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -311,12 +380,12 @@ export type Tables<
   DefaultSchemaTableNameOrOptions extends
     | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
         DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -338,13 +407,12 @@ export type Tables<
 
 export type TablesInsert<
   DefaultSchemaTableNameOrOptions extends
-    | keyof DefaultSchema["Tables"]
-    | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+    keyof DefaultSchema["Tables"] | { schema: keyof DatabaseWithoutInternals },
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -363,13 +431,12 @@ export type TablesInsert<
 
 export type TablesUpdate<
   DefaultSchemaTableNameOrOptions extends
-    | keyof DefaultSchema["Tables"]
-    | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+    keyof DefaultSchema["Tables"] | { schema: keyof DatabaseWithoutInternals },
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -388,13 +455,12 @@ export type TablesUpdate<
 
 export type Enums<
   DefaultSchemaEnumNameOrOptions extends
-    | keyof DefaultSchema["Enums"]
-    | { schema: keyof DatabaseWithoutInternals },
-  EnumName extends DefaultSchemaEnumNameOrOptions extends {
+    keyof DefaultSchema["Enums"] | { schema: keyof DatabaseWithoutInternals },
+  EnumName extends (DefaultSchemaEnumNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaEnumNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -407,11 +473,11 @@ export type CompositeTypes<
   PublicCompositeTypeNameOrOptions extends
     | keyof DefaultSchema["CompositeTypes"]
     | { schema: keyof DatabaseWithoutInternals },
-  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
+  CompositeTypeName extends (PublicCompositeTypeNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
-    : never = never,
+    : never) = never,
 > = PublicCompositeTypeNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -423,10 +489,23 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      destination_status: ["pending", "publishing", "published", "failed"],
+      destination_status: [
+        "pending",
+        "publishing",
+        "processing",
+        "published",
+        "failed",
+      ],
       login_provider: ["chzzk", "soop", "cime"],
       post_status: ["draft", "publishing", "published", "partial", "failed"],
-      publish_platform: ["threads", "x", "discord", "naver_cafe", "soop"],
+      publish_platform: [
+        "threads",
+        "x",
+        "discord",
+        "tiktok",
+        "naver_cafe",
+        "soop",
+      ],
     },
   },
 } as const

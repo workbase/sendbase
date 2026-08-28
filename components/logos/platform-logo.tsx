@@ -9,6 +9,7 @@ import { NaverCafeLogo } from "./naver-cafe-logo"
 import type { LogoProps } from "./logo-props"
 import { SoopLogo } from "./soop-logo"
 import { ThreadsLogo } from "./threads-logo"
+import { TikTokLogo } from "./tiktok-logo"
 import { XLogo } from "./x-logo"
 
 type PlatformLogoName = PublishPlatform | "chzzk" | "cime"
@@ -20,6 +21,7 @@ const platformLogo: Record<PlatformLogoName, ComponentType<LogoProps>> = {
   naver_cafe: NaverCafeLogo,
   soop: SoopLogo,
   threads: ThreadsLogo,
+  tiktok: TikTokLogo,
   x: XLogo,
 }
 

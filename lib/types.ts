@@ -2,6 +2,7 @@ export const publishPlatforms = [
   "threads",
   "x",
   "discord",
+  "tiktok",
   "naver_cafe",
   "soop",
 ] as const
@@ -72,7 +73,7 @@ export type ExtensionPublishJob = {
 
 export type ApiPublishPlatform = Extract<
   PublishPlatform,
-  "threads" | "x" | "discord"
+  "threads" | "x" | "discord" | "tiktok"
 >
 
 export type PublishDestinationResult = {
