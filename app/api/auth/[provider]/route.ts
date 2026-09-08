@@ -14,7 +14,10 @@ export async function GET(
 ) {
   const { provider } = await context.params
   if (!isLoginProvider(provider)) {
-    return NextResponse.json({ message: "지원하지 않는 로그인입니다." }, { status: 404 })
+    return NextResponse.json(
+      { message: "지원하지 않는 로그인입니다." },
+      { status: 404 }
+    )
   }
 
   try {
@@ -24,6 +27,7 @@ export async function GET(
     const url = new URL(config.authorizeUrl)
     if (provider === "soop") {
       url.searchParams.set("client_id", config.clientId)
+      url.searchParams.set("state", state)
     } else {
       url.searchParams.set("clientId", config.clientId)
       url.searchParams.set("redirectUri", redirectUri)
@@ -40,7 +44,10 @@ export async function GET(
     })
     return NextResponse.redirect(url)
   } catch (error) {
-    const message = error instanceof Error ? error.message : "로그인 설정 오류입니다."
-    return NextResponse.redirect(`${appOrigin()}/?error=${encodeURIComponent(message)}`)
+    const message =
+      error instanceof Error ? error.message : "로그인 설정 오류입니다."
+    return NextResponse.redirect(
+      `${appOrigin()}/?error=${encodeURIComponent(message)}`
+    )
   }
 }

@@ -15,6 +15,12 @@ type OAuthTokens = {
   expiresIn: number | null
   raw: Record<string, unknown>
 }
+type PlatformAccount = {
+  id: string | null
+  name: string
+  settings: Record<string, unknown>
+  webhookUrl: string | null
+}
 
 function isApiPlatform(value: string): value is ApiPlatform {
   return (
@@ -40,6 +46,27 @@ function record(value: unknown): Record<string, unknown> {
 function value(recordValue: Record<string, unknown>, key: string) {
   const candidate = recordValue[key]
   return typeof candidate === "string" ? candidate : null
+}
+
+function verifiedDiscordWebhookUrl(candidate: string | null) {
+  if (!candidate) return null
+  try {
+    const url = new URL(candidate)
+    if (
+      url.protocol !== "https:" ||
+      url.origin !== "https://discord.com" ||
+      !/^\/api\/webhooks\/\d+\/[^/]+$/.test(url.pathname) ||
+      url.username ||
+      url.password ||
+      url.search ||
+      url.hash
+    ) {
+      return null
+    }
+    return url.toString()
+  } catch {
+    return null
+  }
 }
 
 async function exchange(
@@ -127,7 +154,10 @@ async function exchange(
   } satisfies OAuthTokens
 }
 
-async function profile(platform: ApiPlatform, tokens: OAuthTokens) {
+async function profile(
+  platform: ApiPlatform,
+  tokens: OAuthTokens
+): Promise<PlatformAccount> {
   if (platform === "tiktok") {
     const creator = await queryTikTokCreatorInfoWithToken(tokens.accessToken)
     return {
@@ -142,15 +172,19 @@ async function profile(platform: ApiPlatform, tokens: OAuthTokens) {
               ).toISOString()
             : null,
       },
+      webhookUrl: null,
     }
   }
   if (platform === "discord") {
     const webhook = record(tokens.raw.webhook)
     const name = value(webhook, "name") ?? "Discord 채널"
+    const webhookUrl = verifiedDiscordWebhookUrl(value(webhook, "url"))
+    if (!webhookUrl) throw new Error("Discord 웹훅 주소가 올바르지 않습니다.")
     return {
       id: value(webhook, "id"),
       name,
-      settings: { webhookUrl: value(webhook, "url") ?? "" },
+      settings: {},
+      webhookUrl,
     }
   }
 
@@ -170,6 +204,7 @@ async function profile(platform: ApiPlatform, tokens: OAuthTokens) {
     id: value(source, "id"),
     name: value(source, "username") ?? value(source, "name") ?? platform,
     settings: {},
+    webhookUrl: null,
   }
 }
 
@@ -254,6 +289,9 @@ export async function GET(
           : null,
         expires_at: tokens.expiresIn
           ? new Date(Date.now() + tokens.expiresIn * 1000).toISOString()
+          : null,
+        webhook_url_encrypted: account.webhookUrl
+          ? encryptToken(account.webhookUrl)
           : null,
         settings: connectionSettings,
         updated_at: new Date().toISOString(),

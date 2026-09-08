@@ -1,4 +1,8 @@
 import { decryptToken, encryptToken } from "@/lib/auth/crypto"
+import {
+  assertOwnedPostMediaUrls,
+  downloadOwnedPostImage,
+} from "@/lib/posts/media"
 import { createAdminClient } from "@/lib/supabase/admin"
 import type { PublishPlatform } from "@/lib/types"
 
@@ -22,6 +26,7 @@ type ConnectionRecord = {
   accessToken: string | null
   refreshToken: string | null
   expiresAt: string | null
+  webhookUrl: string | null
   settings: Record<string, string>
 }
 
@@ -66,6 +71,23 @@ function stringValue(record: Record<string, unknown>, key: string) {
 function numberValue(record: Record<string, unknown>, key: string) {
   const value = record[key]
   return typeof value === "number" ? value : null
+}
+
+function isDiscordWebhookUrl(value: string) {
+  try {
+    const url = new URL(value)
+    return (
+      url.protocol === "https:" &&
+      url.origin === "https://discord.com" &&
+      /^\/api\/webhooks\/\d+\/[^/]+$/.test(url.pathname) &&
+      !url.username &&
+      !url.password &&
+      !url.search &&
+      !url.hash
+    )
+  } catch {
+    return false
+  }
 }
 
 function redactSensitiveValues(value: unknown): unknown {
@@ -122,7 +144,7 @@ async function getConnection(userId: string, platform: PublishPlatform) {
   const { data, error } = await supabase
     .from("platform_connections")
     .select(
-      "id, external_account_id, access_token_encrypted, refresh_token_encrypted, expires_at, settings"
+      "id, external_account_id, access_token_encrypted, refresh_token_encrypted, expires_at, webhook_url_encrypted, settings"
     )
     .eq("user_id", userId)
     .eq("platform", platform)
@@ -139,6 +161,9 @@ async function getConnection(userId: string, platform: PublishPlatform) {
       ? decryptToken(data.refresh_token_encrypted as string)
       : null,
     expiresAt: data.expires_at as string | null,
+    webhookUrl: data.webhook_url_encrypted
+      ? decryptToken(data.webhook_url_encrypted as string)
+      : null,
     settings: (data.settings ?? {}) as Record<string, string>,
   } satisfies ConnectionRecord
 
@@ -478,11 +503,12 @@ async function publishThreads(
   return threadsPublishOutput(id, accessToken)
 }
 
-async function uploadXImage(accessToken: string, imageUrl: string) {
-  const imageResponse = await fetch(imageUrl, { cache: "no-store" })
-  if (!imageResponse.ok)
-    throw new Error("X에 첨부할 이미지를 불러오지 못했습니다.")
-  const buffer = Buffer.from(await imageResponse.arrayBuffer())
+async function uploadXImage(
+  accessToken: string,
+  userId: string,
+  imageUrl: string
+) {
+  const image = await downloadOwnedPostImage(userId, imageUrl)
   const response = await fetch("https://api.x.com/2/media/upload", {
     method: "POST",
     headers: {
@@ -490,9 +516,9 @@ async function uploadXImage(accessToken: string, imageUrl: string) {
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      media: buffer.toString("base64"),
+      media: image.data.toString("base64"),
       media_category: "tweet_image",
-      media_type: imageResponse.headers.get("content-type") ?? "image/jpeg",
+      media_type: image.contentType,
       shared: false,
     }),
     cache: "no-store",
@@ -504,15 +530,20 @@ async function uploadXImage(accessToken: string, imageUrl: string) {
   return id
 }
 
-async function publishX(input: PublishContent, connection: ConnectionRecord) {
+async function publishX(
+  input: PublishContent,
+  connection: ConnectionRecord,
+  userId: string
+) {
   if (!connection.accessToken) throw new Error("X 계정을 다시 연결해 주세요.")
+  const accessToken = connection.accessToken
   const mediaIds = await Promise.all(
-    input.imageUrls.map((url) => uploadXImage(connection.accessToken!, url))
+    input.imageUrls.map((url) => uploadXImage(accessToken, userId, url))
   )
   const response = await fetch("https://api.x.com/2/tweets", {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${connection.accessToken}`,
+      Authorization: `Bearer ${accessToken}`,
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
@@ -532,13 +563,11 @@ async function publishX(input: PublishContent, connection: ConnectionRecord) {
 
 async function publishDiscord(
   input: PublishContent,
-  connection: ConnectionRecord
+  connection: ConnectionRecord,
+  userId: string
 ) {
-  const webhookUrl = connection.settings.webhookUrl
-  if (
-    !webhookUrl ||
-    !webhookUrl.startsWith("https://discord.com/api/webhooks/")
-  ) {
+  const webhookUrl = connection.webhookUrl
+  if (!webhookUrl || !isDiscordWebhookUrl(webhookUrl)) {
     throw new Error("Discord 웹훅을 다시 연결해 주세요.")
   }
 
@@ -555,11 +584,11 @@ async function publishDiscord(
     const form = new FormData()
     const attachments = await Promise.all(
       input.imageUrls.map(async (url, index) => {
-        const image = await fetch(url, { cache: "no-store" })
-        if (!image.ok)
-          throw new Error("Discord에 첨부할 이미지를 불러오지 못했습니다.")
-        const blob = await image.blob()
-        const filename = `image-${index + 1}.${blob.type.split("/")[1] ?? "jpg"}`
+        const image = await downloadOwnedPostImage(userId, url)
+        const blob = new Blob([new Uint8Array(image.data)], {
+          type: image.contentType,
+        })
+        const filename = `image-${index + 1}.${image.extension}`
         form.append(`files[${index}]`, blob, filename)
         return { id: index, filename }
       })
@@ -593,15 +622,18 @@ export async function createApiPlatformPublisher(
 ): Promise<(input: PublishContent) => Promise<PublishOutput>> {
   if (platform === "threads") {
     const connection = await getConnection(userId, platform)
-    return (input) => publishThreads(input, connection)
+    return (input) => {
+      assertOwnedPostMediaUrls(userId, input.imageUrls)
+      return publishThreads(input, connection)
+    }
   }
   if (platform === "x") {
     const connection = await getConnection(userId, platform)
-    return (input) => publishX(input, connection)
+    return (input) => publishX(input, connection, userId)
   }
   if (platform === "discord") {
     const connection = await getConnection(userId, platform)
-    return (input) => publishDiscord(input, connection)
+    return (input) => publishDiscord(input, connection, userId)
   }
   throw new Error("브라우저 확장 프로그램으로 게시해야 하는 플랫폼입니다.")
 }

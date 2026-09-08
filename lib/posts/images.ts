@@ -3,13 +3,13 @@ import "server-only"
 import sharp from "sharp"
 
 import { imageUrlsFromHtml, replaceEditorImageUrls } from "@/lib/posts/content"
+import { ownedPostMediaPath } from "@/lib/posts/media"
 import { createAdminClient } from "@/lib/supabase/admin"
 
 const ORIGINAL_MAX_WIDTH = 1600
 const THUMBNAIL_MAX_WIDTH = 640
 const MAX_OUTPUT_BYTES = 10 * 1024 * 1024
 const POST_MEDIA_BUCKET = "post-media"
-const POST_MEDIA_PUBLIC_PATH = `/storage/v1/object/public/${POST_MEDIA_BUCKET}/`
 
 type CompatibleFormat = {
   contentType: "image/jpeg" | "image/png"
@@ -93,29 +93,6 @@ export async function optimizePostImage(input: Buffer) {
   }
 }
 
-function ownedPostMediaPath(userId: string, imageUrl: string) {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-  if (!supabaseUrl)
-    throw new Error("NEXT_PUBLIC_SUPABASE_URL 환경 변수가 필요합니다.")
-
-  try {
-    const url = new URL(imageUrl)
-    if (url.origin !== new URL(supabaseUrl).origin) return null
-    if (!url.pathname.startsWith(POST_MEDIA_PUBLIC_PATH)) return null
-
-    const path = decodeURIComponent(
-      url.pathname.slice(POST_MEDIA_PUBLIC_PATH.length)
-    )
-    const segments = path.split("/")
-    if (segments.some((segment) => segment === "." || segment === "..")) {
-      return null
-    }
-    return segments[0] === userId ? path : null
-  } catch {
-    return null
-  }
-}
-
 async function existingCompatiblePath(
   bucket: PostMediaBucket,
   sourcePath: string
@@ -133,7 +110,10 @@ async function ensureCompatibleImageUrl(
   imageUrl: string
 ) {
   const sourcePath = ownedPostMediaPath(userId, imageUrl)
-  if (!sourcePath || !sourcePath.toLowerCase().endsWith(".webp")) {
+  if (!sourcePath) {
+    throw new Error("본인이 업로드한 이미지만 SOOP에 게시할 수 있습니다.")
+  }
+  if (!sourcePath.toLowerCase().endsWith(".webp")) {
     return imageUrl
   }
 

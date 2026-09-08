@@ -41,6 +41,7 @@ import {
   isPostImageMimeType,
   POST_IMAGE_MAX_BYTES,
 } from "@/lib/posts/image-constraints"
+import { assertOwnedPostMediaUrls } from "@/lib/posts/media"
 import { getPostDetail, getPostHistory } from "@/lib/posts/queries"
 import { postFormSchema } from "@/lib/posts/schema"
 import { createAdminClient } from "@/lib/supabase/admin"
@@ -315,6 +316,7 @@ export async function publishPostAction(
     ? `**${parsed.data.title}**\n\n${mergedDiscordText}`
     : mergedDiscordText
   const mergedImageUrls = imageUrlsFromHtml(mergedHtml)
+  assertOwnedPostMediaUrls(user.id, mergedImageUrls)
   validateLimits(
     nonThreadPlatforms,
     mergedSocialText,

@@ -2,6 +2,7 @@ import "server-only"
 
 import sharp from "sharp"
 
+import { ownedPostMediaPath } from "@/lib/posts/media"
 import { createAdminClient } from "@/lib/supabase/admin"
 
 const POST_MEDIA_BUCKET = "post-media"
@@ -34,31 +35,7 @@ export function tikTokMediaUrlPrefix() {
   return normalized
 }
 
-export function ownedPostMediaPath(userId: string, imageUrl: string) {
-  try {
-    const url = new URL(imageUrl)
-    if (url.protocol !== "https:" || url.origin !== supabaseMediaOrigin())
-      return null
-    if (!url.pathname.startsWith(POST_MEDIA_PUBLIC_PATH)) return null
-    if (url.search || url.hash) return null
-    const path = decodeURIComponent(
-      url.pathname.slice(POST_MEDIA_PUBLIC_PATH.length)
-    )
-    const segments = path.split("/")
-    if (
-      segments.length < 2 ||
-      segments[0] !== userId ||
-      segments.some(
-        (segment) => !segment || segment === "." || segment === ".."
-      )
-    ) {
-      return null
-    }
-    return path
-  } catch {
-    return null
-  }
-}
+export { ownedPostMediaPath } from "@/lib/posts/media"
 
 function derivativePath(
   sourcePath: string,

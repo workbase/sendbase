@@ -1,6 +1,6 @@
 # Sendbase
 
-Threads, X, Discord, 네이버 카페, SOOP 게시판에 하나의 게시물을 일괄 게시하는 Next.js 앱입니다.
+Threads, X, Discord, 네이버 카페, SOOP 게시판, Tiktok에 하나의 게시물을 일괄 게시하는 Next.js 앱입니다.
 
 ## 로컬 설정
 

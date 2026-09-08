@@ -153,6 +153,7 @@ export type Database = {
           settings: Json
           updated_at: string
           user_id: string
+          webhook_url_encrypted: string | null
         }
         Insert: {
           access_token_encrypted?: string | null
@@ -166,6 +167,7 @@ export type Database = {
           settings?: Json
           updated_at?: string
           user_id: string
+          webhook_url_encrypted?: string | null
         }
         Update: {
           access_token_encrypted?: string | null
@@ -179,6 +181,7 @@ export type Database = {
           settings?: Json
           updated_at?: string
           user_id?: string
+          webhook_url_encrypted?: string | null
         }
         Relationships: [
           {
@@ -556,4 +559,3 @@ export const Constants = {
     },
   },
 } as const
-

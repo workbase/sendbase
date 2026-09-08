@@ -2,6 +2,7 @@ import { cache } from "react"
 import { cookies } from "next/headers"
 
 import { hashToken } from "@/lib/auth/crypto"
+import { publicPlatformSettings } from "@/lib/platforms/public-settings"
 import { POST_HISTORY_PAGE_SIZE } from "@/lib/posts/constants"
 import { mapPostHistoryRow, type PostHistoryRow } from "@/lib/posts/queries"
 import { createAdminClient } from "@/lib/supabase/admin"
@@ -16,6 +17,7 @@ import { publishPlatforms } from "@/lib/types"
 
 const SESSION_COOKIE = "sendbase_session"
 const loginProviders = new Set<LoginProvider>(["chzzk", "soop", "cime"])
+const publishPlatformSet = new Set<PublishPlatform>(publishPlatforms)
 
 type DashboardInitialData = {
   user: AppUser
@@ -54,6 +56,7 @@ function parseDashboardData(value: unknown): DashboardInitialData | null {
         if (
           !isRecord(item) ||
           typeof item.platform !== "string" ||
+          !publishPlatformSet.has(item.platform as PublishPlatform) ||
           typeof item.connected !== "boolean" ||
           (item.display_name !== null &&
             typeof item.display_name !== "string") ||
@@ -61,12 +64,13 @@ function parseDashboardData(value: unknown): DashboardInitialData | null {
         ) {
           return []
         }
+        const platform = item.platform as PublishPlatform
         return [
           {
-            platform: item.platform as PublishPlatform,
+            platform,
             displayName: item.display_name,
             connected: item.connected,
-            settings: item.settings as Record<string, string>,
+            settings: publicPlatformSettings(platform, item.settings),
           },
         ]
       })

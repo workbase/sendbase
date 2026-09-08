@@ -2,7 +2,11 @@ import { cookies } from "next/headers"
 import { NextResponse } from "next/server"
 
 import { encryptToken } from "@/lib/auth/crypto"
-import { appOrigin, getLoginProviderConfig, isLoginProvider } from "@/lib/auth/providers"
+import {
+  appOrigin,
+  getLoginProviderConfig,
+  isLoginProvider,
+} from "@/lib/auth/providers"
 import { createSession } from "@/lib/auth/session"
 import { createAdminClient } from "@/lib/supabase/admin"
 import type { LoginProvider } from "@/lib/types"
@@ -21,7 +25,9 @@ type SocialProfile = {
 }
 
 function asRecord(value: unknown): Record<string, unknown> {
-  return typeof value === "object" && value !== null ? (value as Record<string, unknown>) : {}
+  return typeof value === "object" && value !== null
+    ? (value as Record<string, unknown>)
+    : {}
 }
 
 function firstString(record: Record<string, unknown>, keys: string[]) {
@@ -32,7 +38,11 @@ function firstString(record: Record<string, unknown>, keys: string[]) {
   return null
 }
 
-async function exchangeCode(provider: LoginProvider, code: string, state: string) {
+async function exchangeCode(
+  provider: LoginProvider,
+  code: string,
+  state: string
+) {
   const config = getLoginProviderConfig(provider)
   const redirectUri = `${appOrigin()}/api/auth/${provider}/callback`
   let response: Response
@@ -68,7 +78,10 @@ async function exchangeCode(provider: LoginProvider, code: string, state: string
 
   const json: unknown = await response.json()
   if (!response.ok) {
-    throw new Error(firstString(asRecord(json), ["message", "error_description"]) ?? "토큰 발급에 실패했습니다.")
+    throw new Error(
+      firstString(asRecord(json), ["message", "error_description"]) ??
+        "토큰 발급에 실패했습니다."
+    )
   }
   const root = asRecord(json)
   const source = provider === "soop" ? root : asRecord(root.content)
@@ -115,7 +128,10 @@ async function fetchProfile(provider: LoginProvider, accessToken: string) {
 
   const root = asRecord(json)
   if (provider === "soop" && root.result !== 1) {
-    throw new Error(firstString(root, ["msg", "message"]) ?? "SOOP 프로필을 불러오지 못했습니다.")
+    throw new Error(
+      firstString(root, ["msg", "message"]) ??
+        "SOOP 프로필을 불러오지 못했습니다."
+    )
   }
   const content = asRecord(root.content)
   const data = asRecord(root.data)
@@ -133,7 +149,13 @@ async function fetchProfile(provider: LoginProvider, accessToken: string) {
     "uid",
     "station_name",
   ])
-  const name = firstString(source, ["channelName", "nickname", "name", "user_nick", "userName"])
+  const name = firstString(source, [
+    "channelName",
+    "nickname",
+    "name",
+    "user_nick",
+    "userName",
+  ])
   if (!id || !name) throw new Error("소셜 프로필 식별 정보가 없습니다.")
 
   const avatarUrl = firstString(source, [
@@ -151,7 +173,11 @@ async function fetchProfile(provider: LoginProvider, accessToken: string) {
   } satisfies SocialProfile
 }
 
-async function upsertUser(provider: LoginProvider, tokens: TokenSet, profile: SocialProfile) {
+async function upsertUser(
+  provider: LoginProvider,
+  tokens: TokenSet,
+  profile: SocialProfile
+) {
   const supabase = createAdminClient()
   const { data: existing, error: findError } = await supabase
     .from("login_accounts")
@@ -186,7 +212,9 @@ async function upsertUser(provider: LoginProvider, tokens: TokenSet, profile: So
     provider,
     provider_account_id: profile.id,
     access_token_encrypted: encryptToken(tokens.accessToken),
-    refresh_token_encrypted: tokens.refreshToken ? encryptToken(tokens.refreshToken) : null,
+    refresh_token_encrypted: tokens.refreshToken
+      ? encryptToken(tokens.refreshToken)
+      : null,
     expires_at: tokens.expiresIn
       ? new Date(Date.now() + tokens.expiresIn * 1000).toISOString()
       : null,
@@ -206,7 +234,10 @@ export async function GET(
 ) {
   const { provider } = await context.params
   if (!isLoginProvider(provider)) {
-    return NextResponse.json({ message: "지원하지 않는 로그인입니다." }, { status: 404 })
+    return NextResponse.json(
+      { message: "지원하지 않는 로그인입니다." },
+      { status: 404 }
+    )
   }
 
   const url = new URL(request.url)
@@ -216,20 +247,23 @@ export async function GET(
   const expectedState = cookieStore.get(`oauth_state_${provider}`)?.value
   cookieStore.delete(`oauth_state_${provider}`)
 
-  const invalidState =
-    provider === "soop" ? !expectedState : !state || state !== expectedState
-  if (!code || invalidState) {
-    return NextResponse.redirect(`${appOrigin()}/?error=${encodeURIComponent("로그인 요청이 만료되었거나 유효하지 않습니다.")}`)
+  if (!code || !state || !expectedState || state !== expectedState) {
+    return NextResponse.redirect(
+      `${appOrigin()}/?error=${encodeURIComponent("로그인 요청이 만료되었거나 유효하지 않습니다.")}`
+    )
   }
 
   try {
-    const tokens = await exchangeCode(provider, code, state ?? "")
+    const tokens = await exchangeCode(provider, code, state)
     const profile = await fetchProfile(provider, tokens.accessToken)
     const userId = await upsertUser(provider, tokens, profile)
     await createSession(userId)
     return NextResponse.redirect(`${appOrigin()}/dashboard`)
   } catch (error) {
-    const message = error instanceof Error ? error.message : "로그인에 실패했습니다."
-    return NextResponse.redirect(`${appOrigin()}/?error=${encodeURIComponent(message)}`)
+    const message =
+      error instanceof Error ? error.message : "로그인에 실패했습니다."
+    return NextResponse.redirect(
+      `${appOrigin()}/?error=${encodeURIComponent(message)}`
+    )
   }
 }

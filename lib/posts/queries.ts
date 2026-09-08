@@ -1,6 +1,7 @@
 import { cache } from "react"
 
 import { createAdminClient } from "@/lib/supabase/admin"
+import { publicPlatformSettings } from "@/lib/platforms/public-settings"
 import { publishPlatforms } from "@/lib/types"
 import type {
   PlatformConnection,
@@ -51,6 +52,7 @@ export type ConnectionRow = {
   platform: string
   display_name: string | null
   access_token_encrypted: string | null
+  webhook_url_encrypted: string | null
   settings: Record<string, unknown> | null
 }
 
@@ -161,13 +163,18 @@ export function mapPostHistoryRow(post: PostHistoryRow): PostHistoryItem {
 }
 
 export function mapConnectionRow(item: ConnectionRow): PlatformConnection {
+  const platform = item.platform as PublishPlatform
+  const settings = publicPlatformSettings(platform, item.settings)
   return {
-    platform: item.platform as PublishPlatform,
+    platform,
     displayName: item.display_name,
     connected:
-      Boolean(item.access_token_encrypted) ||
-      Object.keys(item.settings ?? {}).length > 0,
-    settings: (item.settings ?? {}) as Record<string, string>,
+      platform === "discord"
+        ? Boolean(item.webhook_url_encrypted)
+        : platform === "threads" || platform === "x" || platform === "tiktok"
+          ? Boolean(item.access_token_encrypted)
+          : Object.keys(settings).length > 0,
+    settings,
   }
 }
 
@@ -280,7 +287,9 @@ export const getConnections = cache(
     const supabase = createAdminClient()
     const { data, error } = await supabase
       .from("platform_connections")
-      .select("platform, display_name, access_token_encrypted, settings")
+      .select(
+        "platform, display_name, access_token_encrypted, webhook_url_encrypted, settings"
+      )
       .eq("user_id", userId)
     if (error) throw new Error(error.message)
     return (data ?? []).map((item) =>
