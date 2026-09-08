@@ -76,6 +76,20 @@ export function LegalDocumentPage({
             >
               개인정보처리방침
             </Button>
+            <Button
+              render={
+                <a
+                  href="https://github.com/workbase/sendbase"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                />
+              }
+              nativeButton={false}
+              variant="link"
+              size="sm"
+            >
+              GitHub
+            </Button>
             <CrispSupportButton variant="link" size="sm" showIcon={false} />
             <ThemeSelector />
           </div>
