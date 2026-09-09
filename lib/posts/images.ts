@@ -1,7 +1,5 @@
 import "server-only"
 
-import sharp from "sharp"
-
 import { imageUrlsFromHtml, replaceEditorImageUrls } from "@/lib/posts/content"
 import { ownedPostMediaPath } from "@/lib/posts/media"
 import { createAdminClient } from "@/lib/supabase/admin"
@@ -31,11 +29,13 @@ const pngFormat: CompatibleFormat = {
 }
 
 async function compatibleFormat(input: Buffer) {
+  const { default: sharp } = await import("sharp")
   const metadata = await sharp(input, { animated: false }).metadata()
   return metadata.hasAlpha ? pngFormat : jpegFormat
 }
 
-function imagePipeline(input: Buffer, width: number) {
+async function imagePipeline(input: Buffer, width: number) {
+  const { default: sharp } = await import("sharp")
   return sharp(input, { animated: false }).rotate().resize({
     width,
     withoutEnlargement: true,
@@ -49,7 +49,7 @@ async function encodeCompatibleImage(
   format: CompatibleFormat,
   thumbnail = false
 ) {
-  const pipeline = imagePipeline(input, width)
+  const pipeline = await imagePipeline(input, width)
   const encoded =
     format.extension === "png"
       ? pipeline.png({

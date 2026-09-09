@@ -1,7 +1,5 @@
 import "server-only"
 
-import sharp from "sharp"
-
 import { ownedPostMediaPath } from "@/lib/posts/media"
 import { createAdminClient } from "@/lib/supabase/admin"
 
@@ -45,6 +43,7 @@ function derivativePath(
 }
 
 export async function optimizeTikTokImage(input: Buffer) {
+  const { default: sharp } = await import("sharp")
   const metadata = await sharp(input, { animated: false }).metadata()
   if (!metadata.width || !metadata.height) {
     throw new Error("TikTok 이미지 크기를 확인하지 못했습니다.")
